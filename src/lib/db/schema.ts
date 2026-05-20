@@ -41,6 +41,19 @@ export const quoteItems = sqliteTable("quote_items", {
   totalPrice: real("total_price"),
 });
 
+export const quoteItemDimensions = sqliteTable("quote_item_dimensions", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  quoteItemId: integer("quote_item_id")
+    .notNull()
+    .references(() => quoteItems.id, { onDelete: "cascade" }),
+  label: text("label"),
+  width: real("width"),
+  height: real("height"),
+  quantity: integer("quantity").default(1),
+  unitPrice: real("unit_price"),
+  totalPrice: real("total_price"),
+});
+
 export const notes = sqliteTable("notes", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   content: text("content").notNull(),
@@ -60,9 +73,17 @@ export const quotesRelations = relations(quotes, ({ one, many }) => ({
   items: many(quoteItems),
 }));
 
-export const quoteItemsRelations = relations(quoteItems, ({ one }) => ({
+export const quoteItemsRelations = relations(quoteItems, ({ one, many }) => ({
   quote: one(quotes, {
     fields: [quoteItems.quoteId],
     references: [quotes.id],
+  }),
+  dimensions: many(quoteItemDimensions),
+}));
+
+export const quoteItemDimensionsRelations = relations(quoteItemDimensions, ({ one }) => ({
+  quoteItem: one(quoteItems, {
+    fields: [quoteItemDimensions.quoteItemId],
+    references: [quoteItems.id],
   }),
 }));

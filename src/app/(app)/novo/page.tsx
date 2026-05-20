@@ -29,8 +29,18 @@ import {
   User,
   FileText,
   Package,
+  Ruler,
 } from "lucide-react";
 import { QuotePreview } from "@/components/pdf/quote-preview";
+
+interface ItemDimension {
+  label: string;
+  width: string;
+  height: string;
+  quantity: string;
+  unit_price: string;
+  total_price: string;
+}
 
 interface QuoteItem {
   id?: number;
@@ -44,12 +54,22 @@ interface QuoteItem {
   quantity: string;
   unit_price: string;
   total_price: string;
+  dimensions: ItemDimension[];
 }
 
 interface ImageOption {
   name: string;
   url: string;
 }
+
+const emptyDimension: ItemDimension = {
+  label: "",
+  width: "",
+  height: "",
+  quantity: "1",
+  unit_price: "",
+  total_price: "0",
+};
 
 const emptyItem: QuoteItem = {
   title: "",
@@ -62,6 +82,7 @@ const emptyItem: QuoteItem = {
   quantity: "1",
   unit_price: "",
   total_price: "0",
+  dimensions: [],
 };
 
 function QuoteFormContent() {
@@ -189,7 +210,8 @@ function QuoteFormContent() {
 
       if (data.items && data.items.length > 0) {
         setItems(
-          data.items.map((item: QuoteItem) => ({
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          data.items.map((item: any) => ({
             title: item.title || "",
             image_url: item.image_url || "",
             width: item.width?.toString() || "",
@@ -200,6 +222,15 @@ function QuoteFormContent() {
             quantity: item.quantity?.toString() || "1",
             unit_price: item.unit_price?.toString() || "",
             total_price: item.total_price?.toString() || "0",
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            dimensions: item.dimensions ? item.dimensions.map((dim: any) => ({
+              label: dim.label || "",
+              width: dim.width?.toString() || "",
+              height: dim.height?.toString() || "",
+              quantity: dim.quantity?.toString() || "1",
+              unit_price: dim.unitPrice?.toString() || dim.unit_price?.toString() || "",
+              total_price: dim.totalPrice?.toString() || dim.total_price?.toString() || "0",
+            })) : [],
           }))
         );
       }
@@ -218,7 +249,7 @@ function QuoteFormContent() {
     }
   }, [editId, loadQuoteData]);
 
-  const addItem = () => setItems([...items, { ...emptyItem }]);
+  const addItem = () => setItems([...items, { ...emptyItem, dimensions: [] }]);
 
   const removeItem = (index: number) => {
     if (items.length <= 1) return;
@@ -235,6 +266,56 @@ function QuoteFormContent() {
       const price = parseFloat(field === "unit_price" ? value : updated[index].unit_price) || 0;
       updated[index].total_price = (qty * price).toFixed(2);
     }
+
+    setItems(updated);
+  };
+
+  // Dimension helpers
+  const addDimension = (itemIndex: number) => {
+    const updated = [...items];
+    updated[itemIndex] = {
+      ...updated[itemIndex],
+      dimensions: [...updated[itemIndex].dimensions, { ...emptyDimension }],
+    };
+    setItems(updated);
+  };
+
+  const removeDimension = (itemIndex: number, dimIndex: number) => {
+    const updated = [...items];
+    const newDims = updated[itemIndex].dimensions.filter((_, i) => i !== dimIndex);
+    updated[itemIndex] = { ...updated[itemIndex], dimensions: newDims };
+    // Recalculate item total from remaining dimensions
+    if (newDims.length > 0) {
+      updated[itemIndex].total_price = newDims
+        .reduce((sum, d) => sum + (parseFloat(d.total_price) || 0), 0)
+        .toFixed(2);
+    }
+    setItems(updated);
+  };
+
+  const updateDimension = (
+    itemIndex: number,
+    dimIndex: number,
+    field: keyof ItemDimension,
+    value: string
+  ) => {
+    const updated = [...items];
+    const dims = [...updated[itemIndex].dimensions];
+    dims[dimIndex] = { ...dims[dimIndex], [field]: value };
+
+    // Auto-calculate dimension total_price
+    if (field === "quantity" || field === "unit_price") {
+      const qty = parseFloat(field === "quantity" ? value : dims[dimIndex].quantity) || 0;
+      const price = parseFloat(field === "unit_price" ? value : dims[dimIndex].unit_price) || 0;
+      dims[dimIndex].total_price = (qty * price).toFixed(2);
+    }
+
+    updated[itemIndex] = { ...updated[itemIndex], dimensions: dims };
+
+    // Recalculate item total as sum of all dimension totals
+    updated[itemIndex].total_price = dims
+      .reduce((sum, d) => sum + (parseFloat(d.total_price) || 0), 0)
+      .toFixed(2);
 
     setItems(updated);
   };
@@ -269,6 +350,14 @@ function QuoteFormContent() {
         quantity: item.quantity,
         unit_price: item.unit_price || null,
         total_price: item.total_price,
+        dimensions: item.dimensions.length > 0 ? item.dimensions.map((dim) => ({
+          label: dim.label || null,
+          width: dim.width,
+          height: dim.height,
+          quantity: dim.quantity,
+          unit_price: dim.unit_price,
+          total_price: dim.total_price,
+        })) : undefined,
       })),
     };
 
@@ -532,103 +621,243 @@ function QuoteFormContent() {
                     </div>
                   </div>
 
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label>Largura (mm)</Label>
-                      <Input
-                        type="number"
-                        value={item.width}
-                        onChange={(e) =>
-                          updateItem(index, "width", e.target.value)
-                        }
-                        placeholder="1200"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Altura (mm)</Label>
-                      <Input
-                        type="number"
-                        value={item.height}
-                        onChange={(e) =>
-                          updateItem(index, "height", e.target.value)
-                        }
-                        placeholder="2100"
-                      />
-                    </div>
-                  </div>
+                  {item.dimensions.length === 0 && (
+                    <>
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label>Largura (mm)</Label>
+                          <Input
+                            type="number"
+                            value={item.width}
+                            onChange={(e) =>
+                              updateItem(index, "width", e.target.value)
+                            }
+                            placeholder="1200"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Altura (mm)</Label>
+                          <Input
+                            type="number"
+                            value={item.height}
+                            onChange={(e) =>
+                              updateItem(index, "height", e.target.value)
+                            }
+                            placeholder="2100"
+                          />
+                        </div>
+                      </div>
 
-                  <div className="grid gap-4 sm:grid-cols-3">
-                    <div className="space-y-2">
-                      <Label>Cor do Vidro</Label>
-                      <Input
-                        value={item.glass}
-                        onChange={(e) =>
-                          updateItem(index, "glass", e.target.value)
-                        }
-                        placeholder="Incolor"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Cor do Alumínio</Label>
-                      <Input
-                        value={item.aluminum}
-                        onChange={(e) =>
-                          updateItem(index, "aluminum", e.target.value)
-                        }
-                        placeholder="Preto"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Cor das Ferragens</Label>
-                      <Input
-                        value={item.hardware}
-                        onChange={(e) =>
-                          updateItem(index, "hardware", e.target.value)
-                        }
-                        placeholder="Cromado"
-                      />
-                    </div>
-                  </div>
+                      <div className="grid gap-4 sm:grid-cols-3">
+                        <div className="space-y-2">
+                          <Label>Cor do Vidro</Label>
+                          <Input
+                            value={item.glass}
+                            onChange={(e) =>
+                              updateItem(index, "glass", e.target.value)
+                            }
+                            placeholder="Incolor"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Cor do Alumínio</Label>
+                          <Input
+                            value={item.aluminum}
+                            onChange={(e) =>
+                              updateItem(index, "aluminum", e.target.value)
+                            }
+                            placeholder="Preto"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Cor das Ferragens</Label>
+                          <Input
+                            value={item.hardware}
+                            onChange={(e) =>
+                              updateItem(index, "hardware", e.target.value)
+                            }
+                            placeholder="Cromado"
+                          />
+                        </div>
+                      </div>
+                    </>
+                  )}
 
-                  <div className="grid gap-4 sm:grid-cols-3">
-                    <div className="space-y-2">
-                      <Label>Quantidade</Label>
-                      <Input
-                        type="number"
-                        value={item.quantity}
-                        onChange={(e) =>
-                          updateItem(index, "quantity", e.target.value)
-                        }
-                        min="1"
-                        required
-                      />
+                  {/* Dimensions section */}
+                  {item.dimensions.length > 0 ? (
+                    <div className="space-y-3 rounded-lg border border-dashed border-border/60 bg-muted/30 p-4">
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                          📐 Dimensões
+                        </p>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => addDimension(index)}
+                          className="h-7 gap-1 text-xs"
+                        >
+                          <Plus className="h-3 w-3" />
+                          Adicionar
+                        </Button>
+                      </div>
+
+                      {/* Dimension header - hidden on mobile */}
+                      <div className="hidden sm:grid sm:grid-cols-[1fr_80px_80px_60px_90px_90px_32px] gap-2">
+                        <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Local</span>
+                        <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Larg.</span>
+                        <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Alt.</span>
+                        <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Qtd</span>
+                        <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">V.Unit</span>
+                        <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">V.Total</span>
+                        <span />
+                      </div>
+
+                      {item.dimensions.map((dim, dimIndex) => (
+                        <div
+                          key={dimIndex}
+                          className="grid grid-cols-2 gap-2 sm:grid-cols-[1fr_80px_80px_60px_90px_90px_32px] items-end"
+                        >
+                          <div className="col-span-2 sm:col-span-1">
+                            <Label className="text-xs sm:hidden">Local</Label>
+                            <Input
+                              value={dim.label}
+                              onChange={(e) => updateDimension(index, dimIndex, "label", e.target.value)}
+                              placeholder="Ex: Suite master"
+                              className="h-9 text-sm"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-xs sm:hidden">Largura</Label>
+                            <Input
+                              type="number"
+                              value={dim.width}
+                              onChange={(e) => updateDimension(index, dimIndex, "width", e.target.value)}
+                              placeholder="mm"
+                              className="h-9 text-sm"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-xs sm:hidden">Altura</Label>
+                            <Input
+                              type="number"
+                              value={dim.height}
+                              onChange={(e) => updateDimension(index, dimIndex, "height", e.target.value)}
+                              placeholder="mm"
+                              className="h-9 text-sm"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-xs sm:hidden">Qtd</Label>
+                            <Input
+                              type="number"
+                              value={dim.quantity}
+                              onChange={(e) => updateDimension(index, dimIndex, "quantity", e.target.value)}
+                              min="1"
+                              className="h-9 text-sm"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-xs sm:hidden">V.Unit</Label>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              value={dim.unit_price}
+                              onChange={(e) => updateDimension(index, dimIndex, "unit_price", e.target.value)}
+                              placeholder="0.00"
+                              className="h-9 text-sm"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-xs sm:hidden">V.Total</Label>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              value={dim.total_price}
+                              onChange={(e) => updateDimension(index, dimIndex, "total_price", e.target.value)}
+                              placeholder="0.00"
+                              className="h-9 text-sm bg-muted/50"
+                            />
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-9 w-9 text-muted-foreground hover:text-destructive self-end"
+                            onClick={() => removeDimension(index, dimIndex)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      ))}
+
+                      {/* Item total from dimensions */}
+                      <div className="flex items-center justify-end gap-2 border-t border-border/40 pt-3">
+                        <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                          Total do Item:
+                        </span>
+                        <span className="text-base font-bold text-primary">
+                          {parseFloat(item.total_price || "0").toLocaleString("pt-BR", {
+                            style: "currency",
+                            currency: "BRL",
+                          })}
+                        </span>
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      <Label>Valor Unitário (R$)</Label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={item.unit_price}
-                        onChange={(e) =>
-                          updateItem(index, "unit_price", e.target.value)
-                        }
-                        placeholder="0.00"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Valor Total do Item (R$)</Label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={item.total_price}
-                        onChange={(e) =>
-                          updateItem(index, "total_price", e.target.value)
-                        }
-                        placeholder="0.00"
-                        required
-                      />
-                    </div>
-                  </div>
+                  ) : (
+                    <>
+                      <div className="grid gap-4 sm:grid-cols-3">
+                        <div className="space-y-2">
+                          <Label>Quantidade</Label>
+                          <Input
+                            type="number"
+                            value={item.quantity}
+                            onChange={(e) =>
+                              updateItem(index, "quantity", e.target.value)
+                            }
+                            min="1"
+                            required
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Valor Unitário (R$)</Label>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            value={item.unit_price}
+                            onChange={(e) =>
+                              updateItem(index, "unit_price", e.target.value)
+                            }
+                            placeholder="0.00"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Valor Total do Item (R$)</Label>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            value={item.total_price}
+                            onChange={(e) =>
+                              updateItem(index, "total_price", e.target.value)
+                            }
+                            placeholder="0.00"
+                            required
+                          />
+                        </div>
+                      </div>
+
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => addDimension(index)}
+                        className="gap-1.5 text-xs text-muted-foreground hover:text-primary"
+                      >
+                        <Ruler className="h-3.5 w-3.5" />
+                        Adicionar Dimensão
+                      </Button>
+                    </>
+                  )}
                 </div>
               </div>
             ))}
@@ -760,6 +989,14 @@ function QuoteFormContent() {
               quantity: parseInt(item.quantity) || 1,
               unit_price: parseFloat(item.unit_price) || 0,
               total_price: parseFloat(item.total_price) || 0,
+              dimensions: item.dimensions.map((dim) => ({
+                label: dim.label,
+                width: parseFloat(dim.width) || 0,
+                height: parseFloat(dim.height) || 0,
+                quantity: parseInt(dim.quantity) || 1,
+                unit_price: parseFloat(dim.unit_price) || 0,
+                total_price: parseFloat(dim.total_price) || 0,
+              })),
             })),
           }}
           onClose={() => setShowPreview(false)}

@@ -1,5 +1,6 @@
 "use client";
 
+import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { companyData } from "@/lib/company-data";
 import { formatDate, formatCurrencyValue } from "@/lib/formatters";
@@ -31,6 +32,14 @@ interface QuotePreviewProps {
       quantity: number;
       unit_price: number;
       total_price: number;
+      dimensions?: Array<{
+        label: string;
+        width: number;
+        height: number;
+        quantity: number;
+        unit_price: number;
+        total_price: number;
+      }>;
     }>;
   };
   onClose: () => void;
@@ -44,7 +53,7 @@ export function QuotePreview({ client, quote, onClose }: QuotePreviewProps) {
     window.print();
   };
 
-  return (
+  return createPortal(
     // Container principal: flex column preenche toda a tela
     // No iOS Safari, `fixed` dentro de `overflow:auto` não funciona.
     // Solução: separar toolbar (flex-shrink-0) do conteúdo scrollável (flex-1).
@@ -137,18 +146,40 @@ export function QuotePreview({ client, quote, onClose }: QuotePreviewProps) {
                   </div>
                 )}
                 <div style={{ flex: 1, display: "flex", justifyContent: "space-between" }}>
-                  <div>
+                  <div style={{ flex: 1 }}>
                     <div style={{ marginBottom: "10px" }}><strong style={{ fontSize: "11pt", textTransform: "uppercase" }}>ITEM {index + 1} - {item.title}</strong></div>
-                    <div style={{ fontSize: "9pt" }}>LARGURA: {item.width} &nbsp; ALTURA: {item.height}</div>
-                    <div style={{ fontSize: "9pt" }}>
-                      <p style={{ margin: "3px 0" }}>COR DO VIDRO: {item.glass}</p>
-                      <p style={{ margin: "3px 0" }}>COR DOS ALUMÍNIOS: {item.aluminum}</p>
-                      <p style={{ margin: "3px 0" }}>COR DAS FERRAGENS: {item.hardware}</p>
-                      <p style={{ margin: "3px 0" }}>QUANTIDADE: {item.quantity}</p>
-                    </div>
+
+                    {item.dimensions && item.dimensions.length > 0 ? (
+                      <>
+                        <div style={{ margin: "8px 0 0 0", fontSize: "9pt" }}>
+                          {item.dimensions.map((dim, dimIdx) => (
+                            <div key={dimIdx} style={{ margin: "3px 0", display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                              <span>
+                                • {dim.width} x {dim.height}
+                                {dim.label ? ` — ${dim.label}` : ""}
+                                {dim.quantity > 1 ? ` (×${dim.quantity})` : ""}
+                              </span>
+                              <span data-pdf-currency style={{ whiteSpace: "nowrap", marginLeft: "10px" }}>
+                                R$ {formatCurrencyValue(dim.total_price)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div style={{ fontSize: "9pt" }}>LARGURA: {item.width} &nbsp; ALTURA: {item.height}</div>
+                        <div style={{ fontSize: "9pt" }}>
+                          <p style={{ margin: "3px 0" }}>COR DO VIDRO: {item.glass}</p>
+                          <p style={{ margin: "3px 0" }}>COR DOS ALUMÍNIOS: {item.aluminum}</p>
+                          <p style={{ margin: "3px 0" }}>COR DAS FERRAGENS: {item.hardware}</p>
+                          <p style={{ margin: "3px 0" }}>QUANTIDADE: {item.quantity}</p>
+                        </div>
+                      </>
+                    )}
                   </div>
                   <div style={{ textAlign: "right", fontSize: "10pt", minWidth: "180px" }}>
-                    {item.unit_price > 0 && (
+                    {!(item.dimensions && item.dimensions.length > 0) && item.unit_price > 0 && (
                       <p data-pdf-currency style={{ margin: "3px 0", whiteSpace: "nowrap" }}>
                         VALOR UNITÁRIO: R$ {formatCurrencyValue(item.unit_price)}
                       </p>
@@ -211,6 +242,7 @@ export function QuotePreview({ client, quote, onClose }: QuotePreviewProps) {
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

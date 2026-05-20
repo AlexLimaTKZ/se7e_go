@@ -89,6 +89,14 @@ export default function QuotesListPage() {
         quantity: number;
         unit_price: number;
         total_price: number;
+        dimensions?: Array<{
+          label: string;
+          width: number;
+          height: number;
+          quantity: number;
+          unit_price: number;
+          total_price: number;
+        }>;
       }>;
     };
   } | null>(null);
@@ -170,19 +178,8 @@ export default function QuotesListPage() {
           discount: data.discount || 0,
           notes: data.notes || "",
           total: data.total,
-          items: data.items.map(
-            (item: {
-              title: string;
-              image_url: string;
-              width: number;
-              height: number;
-              glass: string;
-              aluminum: string;
-              hardware: string;
-              quantity: number;
-              unit_price: number;
-              total_price: number;
-            }) => ({
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          items: data.items.map((item: any) => ({
               title: item.title,
               image_url: item.image_url || "",
               width: item.width || 0,
@@ -193,6 +190,7 @@ export default function QuotesListPage() {
               quantity: item.quantity || 1,
               unit_price: item.unit_price || 0,
               total_price: item.total_price || 0,
+              dimensions: item.dimensions || [],
             })
           ),
         },

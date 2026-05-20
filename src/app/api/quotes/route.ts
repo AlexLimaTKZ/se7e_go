@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { clients, quotes, quoteItems } from "@/lib/db/schema";
+import { clients, quotes, quoteItems, quoteItemDimensions } from "@/lib/db/schema";
 import { desc, eq } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
@@ -89,35 +89,49 @@ export async function POST(request: NextRequest) {
       })
       .returning({ id: quotes.id });
 
-    // Inserir os itens
+    // Inserir os itens (um a um para obter IDs e vincular dimensões)
     if (body.items && body.items.length > 0) {
-      const itemsToInsert = body.items.map(
-        (item: {
-          title: string;
-          image_url?: string;
-          width?: string;
-          height?: string;
-          glass?: string;
-          aluminum?: string;
-          hardware?: string;
-          quantity?: string;
-          unit_price?: string;
-          total_price?: string;
-        }) => ({
-          quoteId: newQuote.id,
-          title: item.title,
-          imageUrl: item.image_url || null,
-          width: item.width ? parseFloat(item.width) : null,
-          height: item.height ? parseFloat(item.height) : null,
-          glass: item.glass || null,
-          aluminumColor: item.aluminum || null,
-          hardwareColor: item.hardware || null,
-          quantity: item.quantity ? parseInt(item.quantity) : 1,
-          unitPrice: item.unit_price ? parseFloat(item.unit_price) : null,
-          totalPrice: item.total_price ? parseFloat(item.total_price) : 0,
-        })
-      );
-      await db.insert(quoteItems).values(itemsToInsert);
+      for (const item of body.items) {
+        const [newItem] = await db
+          .insert(quoteItems)
+          .values({
+            quoteId: newQuote.id,
+            title: item.title,
+            imageUrl: item.image_url || null,
+            width: item.width ? parseFloat(item.width) : null,
+            height: item.height ? parseFloat(item.height) : null,
+            glass: item.glass || null,
+            aluminumColor: item.aluminum || null,
+            hardwareColor: item.hardware || null,
+            quantity: item.quantity ? parseInt(item.quantity) : 1,
+            unitPrice: item.unit_price ? parseFloat(item.unit_price) : null,
+            totalPrice: item.total_price ? parseFloat(item.total_price) : 0,
+          })
+          .returning({ id: quoteItems.id });
+
+        // Inserir dimensões do item (se existirem)
+        if (item.dimensions && item.dimensions.length > 0) {
+          const dimsToInsert = item.dimensions.map(
+            (dim: {
+              label?: string;
+              width?: string;
+              height?: string;
+              quantity?: string;
+              unit_price?: string;
+              total_price?: string;
+            }) => ({
+              quoteItemId: newItem.id,
+              label: dim.label || null,
+              width: dim.width ? parseFloat(dim.width) : null,
+              height: dim.height ? parseFloat(dim.height) : null,
+              quantity: dim.quantity ? parseInt(dim.quantity) : 1,
+              unitPrice: dim.unit_price ? parseFloat(dim.unit_price) : null,
+              totalPrice: dim.total_price ? parseFloat(dim.total_price) : 0,
+            })
+          );
+          await db.insert(quoteItemDimensions).values(dimsToInsert);
+        }
+      }
     }
 
     return NextResponse.json({

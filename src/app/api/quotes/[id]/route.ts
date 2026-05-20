@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { clients, quotes, quoteItems } from "@/lib/db/schema";
+import { clients, quotes, quoteItems, quoteItemDimensions } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
@@ -38,20 +38,39 @@ export async function GET(
       .from(quoteItems)
       .where(eq(quoteItems.quoteId, quoteId));
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const formattedItems = items.map((item: any) => ({
-      id: item.id,
-      image_url: item.imageUrl,
-      title: item.title,
-      width: item.width,
-      height: item.height,
-      glass: item.glass,
-      aluminum: item.aluminumColor,
-      hardware: item.hardwareColor,
-      quantity: item.quantity,
-      unit_price: item.unitPrice,
-      total_price: item.totalPrice,
-    }));
+    // Buscar dimensões de cada item
+    const formattedItems = await Promise.all(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      items.map(async (item: any) => {
+        const dims = await db
+          .select()
+          .from(quoteItemDimensions)
+          .where(eq(quoteItemDimensions.quoteItemId, item.id));
+
+        return {
+          id: item.id,
+          image_url: item.imageUrl,
+          title: item.title,
+          width: item.width,
+          height: item.height,
+          glass: item.glass,
+          aluminum: item.aluminumColor,
+          hardware: item.hardwareColor,
+          quantity: item.quantity,
+          unit_price: item.unitPrice,
+          total_price: item.totalPrice,
+          dimensions: dims.map((d: typeof quoteItemDimensions.$inferSelect) => ({
+            id: d.id,
+            label: d.label,
+            width: d.width,
+            height: d.height,
+            quantity: d.quantity,
+            unit_price: d.unitPrice,
+            total_price: d.totalPrice,
+          })),
+        };
+      })
+    );
 
     return NextResponse.json({
       ...quote[0],
@@ -129,37 +148,52 @@ export async function PUT(
       })
       .where(eq(quotes.id, quoteId));
 
-    // Deletar itens antigos e inserir novos
+    // Deletar itens antigos (CASCADE remove dimensões automaticamente)
     await db.delete(quoteItems).where(eq(quoteItems.quoteId, quoteId));
 
+    // Inserir novos itens (um a um para obter IDs e vincular dimensões)
     if (body.items && body.items.length > 0) {
-      const itemsToInsert = body.items.map(
-        (item: {
-          title: string;
-          image_url?: string;
-          width?: string;
-          height?: string;
-          glass?: string;
-          aluminum?: string;
-          hardware?: string;
-          quantity?: string;
-          unit_price?: string;
-          total_price?: string;
-        }) => ({
-          quoteId,
-          title: item.title,
-          imageUrl: item.image_url || null,
-          width: item.width ? parseFloat(item.width) : null,
-          height: item.height ? parseFloat(item.height) : null,
-          glass: item.glass || null,
-          aluminumColor: item.aluminum || null,
-          hardwareColor: item.hardware || null,
-          quantity: item.quantity ? parseInt(item.quantity) : 1,
-          unitPrice: item.unit_price ? parseFloat(item.unit_price) : null,
-          totalPrice: item.total_price ? parseFloat(item.total_price) : 0,
-        })
-      );
-      await db.insert(quoteItems).values(itemsToInsert);
+      for (const item of body.items) {
+        const [newItem] = await db
+          .insert(quoteItems)
+          .values({
+            quoteId,
+            title: item.title,
+            imageUrl: item.image_url || null,
+            width: item.width ? parseFloat(item.width) : null,
+            height: item.height ? parseFloat(item.height) : null,
+            glass: item.glass || null,
+            aluminumColor: item.aluminum || null,
+            hardwareColor: item.hardware || null,
+            quantity: item.quantity ? parseInt(item.quantity) : 1,
+            unitPrice: item.unit_price ? parseFloat(item.unit_price) : null,
+            totalPrice: item.total_price ? parseFloat(item.total_price) : 0,
+          })
+          .returning({ id: quoteItems.id });
+
+        // Inserir dimensões do item (se existirem)
+        if (item.dimensions && item.dimensions.length > 0) {
+          const dimsToInsert = item.dimensions.map(
+            (dim: {
+              label?: string;
+              width?: string;
+              height?: string;
+              quantity?: string;
+              unit_price?: string;
+              total_price?: string;
+            }) => ({
+              quoteItemId: newItem.id,
+              label: dim.label || null,
+              width: dim.width ? parseFloat(dim.width) : null,
+              height: dim.height ? parseFloat(dim.height) : null,
+              quantity: dim.quantity ? parseInt(dim.quantity) : 1,
+              unitPrice: dim.unit_price ? parseFloat(dim.unit_price) : null,
+              totalPrice: dim.total_price ? parseFloat(dim.total_price) : 0,
+            })
+          );
+          await db.insert(quoteItemDimensions).values(dimsToInsert);
+        }
+      }
     }
 
     return NextResponse.json({ message: "Orçamento atualizado com sucesso!" });

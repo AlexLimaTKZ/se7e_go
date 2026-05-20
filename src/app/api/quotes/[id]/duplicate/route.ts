@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { quotes, quoteItems } from "@/lib/db/schema";
+import { quotes, quoteItems, quoteItemDimensions } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
@@ -53,22 +53,45 @@ export async function POST(
       })
       .returning({ id: quotes.id });
 
-    // Duplicar itens
+    // Duplicar itens (um a um para obter IDs e copiar dimensões)
     if (originalItems.length > 0) {
-      const itemsToInsert = originalItems.map((item: any) => ({
-        quoteId: newQuote.id,
-        title: item.title,
-        imageUrl: item.imageUrl,
-        width: item.width,
-        height: item.height,
-        glass: item.glass,
-        aluminumColor: item.aluminumColor,
-        hardwareColor: item.hardwareColor,
-        quantity: item.quantity,
-        unitPrice: item.unitPrice,
-        totalPrice: item.totalPrice,
-      }));
-      await db.insert(quoteItems).values(itemsToInsert);
+      for (const item of originalItems) {
+        const [newItem] = await db
+          .insert(quoteItems)
+          .values({
+            quoteId: newQuote.id,
+            title: item.title,
+            imageUrl: item.imageUrl,
+            width: item.width,
+            height: item.height,
+            glass: item.glass,
+            aluminumColor: item.aluminumColor,
+            hardwareColor: item.hardwareColor,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            totalPrice: item.totalPrice,
+          })
+          .returning({ id: quoteItems.id });
+
+        // Copiar dimensões do item original
+        const originalDims = await db
+          .select()
+          .from(quoteItemDimensions)
+          .where(eq(quoteItemDimensions.quoteItemId, item.id));
+
+        if (originalDims.length > 0) {
+          const dimsToInsert = originalDims.map((dim: typeof quoteItemDimensions.$inferSelect) => ({
+            quoteItemId: newItem.id,
+            label: dim.label,
+            width: dim.width,
+            height: dim.height,
+            quantity: dim.quantity,
+            unitPrice: dim.unitPrice,
+            totalPrice: dim.totalPrice,
+          }));
+          await db.insert(quoteItemDimensions).values(dimsToInsert);
+        }
+      }
     }
 
     return NextResponse.json({
