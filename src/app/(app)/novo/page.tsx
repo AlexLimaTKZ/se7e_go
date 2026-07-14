@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { AutoResizeTextarea } from "@/components/ui/auto-resize-textarea";
 import { Label } from "@/components/ui/label";
 import {
   Card,
@@ -610,12 +611,13 @@ function QuoteFormContent() {
                     </div>
                     <div className="space-y-2">
                       <Label>Título</Label>
-                      <Input
+                      <AutoResizeTextarea
                         value={item.title}
                         onChange={(e) =>
                           updateItem(index, "title", e.target.value)
                         }
                         placeholder="Ex: Box de vidro banheiro"
+                        maxRows={3}
                         required
                       />
                     </div>
