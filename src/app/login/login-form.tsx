@@ -282,7 +282,7 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
               data-ambient-tagline
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.65, delay: 0.58, ease: "easeOut" }}
+              transition={{ duration: 0.65, delay: 0.58, ease: [0.16, 1, 0.3, 1] }}
               className="absolute bottom-[20%] w-full max-w-lg text-center text-xs font-medium uppercase leading-relaxed tracking-[0.5em] text-white/55 drop-shadow-md"
             >
               Elevando o padrão em alumínio e vidros com design e precisão.
