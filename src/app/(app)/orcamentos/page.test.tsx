@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const navigation = vi.hoisted(() => ({ push: vi.fn() }));
@@ -35,7 +35,7 @@ describe("QuotesListPage status filter", () => {
     });
   });
 
-  it("uses the compatible Brazilian WhatsApp identifier on iPhone", async () => {
+  it("renders the WhatsApp action as PDF sharing from the quote list", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => Response.json({
       items: [{
         id: 1,
@@ -49,26 +49,13 @@ describe("QuotesListPage status filter", () => {
       total: 1,
       totalPages: 1,
     })));
-    Object.defineProperty(navigator, "userAgent", {
-      configurable: true,
-      value: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)",
-    });
-    Object.defineProperty(navigator, "platform", {
-      configurable: true,
-      value: "iPhone",
-    });
-    const open = vi.spyOn(window, "open").mockImplementation(() => null);
+
     render(<QuotesListPage />);
 
-    const [whatsAppButton] = await screen.findAllByRole("button", {
-      name: "Enviar mensagem pelo WhatsApp",
+    const buttons = await screen.findAllByRole("button", {
+      name: "Compartilhar orçamento no WhatsApp",
     });
-    fireEvent.click(whatsAppButton);
-
-    expect(open).toHaveBeenCalledWith(
-      expect.stringContaining("wa.me/558695971050?"),
-      "_blank",
-      "noopener,noreferrer",
-    );
+    expect(buttons.length).toBeGreaterThan(0);
+    expect(buttons[0].getAttribute("title")).toBe("WhatsApp + PDF");
   });
 });
