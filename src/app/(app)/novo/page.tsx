@@ -200,7 +200,6 @@ function QuoteFormContent() {
   const [showPreview, setShowPreview] = useState(false);
   const [draftReady, setDraftReady] = useState(false);
   const [draftSavedAt, setDraftSavedAt] = useState<number | null>(null);
-  const [editingField, setEditingField] = useState(false);
 
   latestForm.current = form;
 
@@ -276,31 +275,6 @@ function QuoteFormContent() {
     window.addEventListener("pagehide", saveBeforeLeaving);
     return () => window.removeEventListener("pagehide", saveBeforeLeaving);
   }, [draftKey, draftReady]);
-
-  useEffect(() => {
-    const onFocusIn = (event: FocusEvent) => {
-      const target = event.target;
-      setEditingField(
-        target instanceof HTMLInputElement ||
-          target instanceof HTMLTextAreaElement ||
-          (target instanceof HTMLElement && target.isContentEditable),
-      );
-    };
-    const onFocusOut = () => {
-      window.setTimeout(() => {
-        const target = document.activeElement;
-        setEditingField(
-          target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement,
-        );
-      }, 0);
-    };
-    document.addEventListener("focusin", onFocusIn);
-    document.addEventListener("focusout", onFocusOut);
-    return () => {
-      document.removeEventListener("focusin", onFocusIn);
-      document.removeEventListener("focusout", onFocusOut);
-    };
-  }, []);
 
   const total = useMemo(() => {
     const itemsTotal = form.items.reduce(
@@ -620,7 +594,7 @@ function QuoteFormContent() {
       </form>
 
       <div
-        className={`fixed inset-x-0 bottom-0 z-40 border-t bg-card/95 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] backdrop-blur-xl transition-transform md:translate-y-0 ${editingField ? "max-md:translate-y-full" : "translate-y-0"}`}
+        className="fixed inset-x-0 bottom-0 z-40 border-t bg-card/95 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] backdrop-blur-xl"
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3">
