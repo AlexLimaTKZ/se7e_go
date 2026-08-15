@@ -47,15 +47,21 @@ function setNavigatorPlatform(userAgent: string, platform: string) {
 }
 
 function stubQuoteFetches() {
+  const pdfBlob = new Blob(["%PDF-1.7 test"], { type: "application/pdf" });
+  const detailResponse = {
+    ok: true,
+    json: vi.fn(async () => quoteDetail),
+  } as unknown as Response;
+  const pdfResponse = {
+    ok: true,
+    headers: new Headers({ "Content-Type": "application/pdf" }),
+    blob: vi.fn(async () => pdfBlob),
+  } as unknown as Response;
+
   const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
     const url = String(input);
-    if (url === "/api/quotes/1") return Response.json(quoteDetail);
-    if (url === "/api/quotes/pdf") {
-      return new Response(new Blob(["%PDF-1.7 test"], { type: "application/pdf" }), {
-        status: 200,
-        headers: { "Content-Type": "application/pdf" },
-      });
-    }
+    if (url === "/api/quotes/1") return detailResponse;
+    if (url === "/api/quotes/pdf") return pdfResponse;
     throw new Error(`Unexpected fetch: ${url}`);
   });
   vi.stubGlobal("fetch", fetchMock);
@@ -87,6 +93,7 @@ describe("QuoteWhatsAppShareButton", () => {
     expect(payload.text).toContain("orçamento #5044");
     expect(payload.files).toHaveLength(1);
     expect(payload.files?.[0].name).toBe("Orcamento-5044-Dr-Magico-de-Oz.pdf");
+    expect(toast.error).not.toHaveBeenCalled();
   });
 
   it("shares only the PDF on iPhone and copies the message", async () => {
@@ -106,6 +113,7 @@ describe("QuoteWhatsAppShareButton", () => {
     expect(payload.files).toHaveLength(1);
     expect(payload.text).toBeUndefined();
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining("orçamento #5044"));
+    expect(toast.error).not.toHaveBeenCalled();
   });
 
   it("downloads the PDF and opens WhatsApp when native file sharing is unavailable", async () => {
@@ -131,5 +139,6 @@ describe("QuoteWhatsAppShareButton", () => {
       "noopener,noreferrer",
     );
     expect(createObjectURL).toHaveBeenCalledOnce();
+    expect(toast.error).not.toHaveBeenCalled();
   });
 });
