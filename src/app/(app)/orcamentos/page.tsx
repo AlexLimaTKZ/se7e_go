@@ -8,7 +8,6 @@ import {
   FileDown,
   LayoutList,
   Loader2,
-  MessageCircle,
   Pencil,
   Plus,
   Search,
@@ -16,6 +15,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { QuotePreview } from "@/components/pdf/quote-preview";
+import { QuoteWhatsAppShareButton } from "@/components/pdf/quote-whatsapp-share-button";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -29,11 +29,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  buildQuoteShareText,
-  buildWhatsAppUrl,
-  isAppleMobileDevice,
-} from "@/lib/pdf/share";
 import {
   Table,
   TableBody,
@@ -274,23 +269,16 @@ function QuotesListContent() {
     }
   };
 
-  const openWhatsApp = (quote: QuoteRow) => {
-    const message = buildQuoteShareText(quote.clientName || "Cliente", quote.quoteNumber || "");
-    const url = buildWhatsAppUrl(quote.clientPhone || "", message, {
-      preferLegacyBrazilianMobile: isAppleMobileDevice(navigator),
-    });
-    if (!url) {
-      toast.error("Cadastre o celular do cliente antes de abrir o WhatsApp.");
-      return;
-    }
-    window.open(url, "_blank", "noopener,noreferrer");
-  };
-
   const actions = (quote: QuoteRow) => (
     <div className="flex flex-wrap justify-end gap-1">
       <Button variant="ghost" size="icon" onClick={() => router.push(`/novo?id=${quote.id}`)} aria-label="Editar orçamento" title="Editar"><Pencil className="size-4" /></Button>
       <Button variant="ghost" size="icon" onClick={() => void handleDuplicate(quote.id)} aria-label="Duplicar orçamento" title="Duplicar"><Copy className="size-4" /></Button>
-      <Button variant="ghost" size="icon" onClick={() => openWhatsApp(quote)} aria-label="Enviar mensagem pelo WhatsApp" title="Mensagem WhatsApp"><MessageCircle className="size-4" /></Button>
+      <QuoteWhatsAppShareButton
+        quoteId={quote.id}
+        quoteNumber={quote.quoteNumber || ""}
+        clientName={quote.clientName || "Cliente"}
+        clientPhone={quote.clientPhone || ""}
+      />
       <Button variant="ghost" size="icon" onClick={() => void handleGeneratePdf(quote.id)} aria-label="Visualizar e compartilhar PDF" title="Compartilhar PDF"><FileDown className="size-4" /></Button>
       <Button variant="ghost" size="icon" onClick={() => setDeleteId(quote.id)} aria-label="Excluir orçamento" title="Excluir" className="hover:text-destructive"><Trash2 className="size-4" /></Button>
     </div>
