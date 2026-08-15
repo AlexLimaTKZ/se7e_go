@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { buildQuoteShareText, buildWhatsAppUrl, isAppleMobileDevice } from "@/lib/pdf/share";
 import { loadSavedQuoteInput } from "@/lib/quotes/saved-quote";
-import { createQuoteShareToken } from "@/lib/quotes/share-token";
+import { createQuoteShareCode } from "@/lib/quotes/share-token";
 
 export const dynamic = "force-dynamic";
 
@@ -28,11 +28,10 @@ export async function GET(
       return NextResponse.json({ error: "Orcamento nao encontrado." }, { status: 404 });
     }
 
-    const token = await createQuoteShareToken(quoteId, secret);
-    const shareUrl = new URL(`/api/shared-quotes/${quoteId}`, request.nextUrl.origin);
-    shareUrl.searchParams.set("token", token);
+    const shareCode = await createQuoteShareCode(quoteId, secret);
+    const shareUrl = new URL(`/o/${shareCode}`, request.nextUrl.origin);
 
-    const message = `${buildQuoteShareText(quote.client.name, quote.quoteNumber)}\n\n📄 Visualizar orçamento em PDF:\n${shareUrl.toString()}`;
+    const message = `${buildQuoteShareText(quote.client.name, quote.quoteNumber)}\n\n📄 Visualizar orçamento:\n${shareUrl.toString()}`;
     const whatsAppUrl = buildWhatsAppUrl(quote.client.phone, message, {
       preferLegacyBrazilianMobile: isAppleMobileDevice({
         userAgent: request.headers.get("user-agent") || "",
