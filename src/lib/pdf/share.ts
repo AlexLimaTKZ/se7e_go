@@ -11,6 +11,7 @@ interface PlatformNavigator {
 
 interface WhatsAppUrlOptions {
   preferLegacyBrazilianMobile?: boolean;
+  useWeb?: boolean;
 }
 
 function safeFilenamePart(value: string, fallback: string): string {
@@ -72,11 +73,22 @@ export function buildWhatsAppUrl(
     ? legacyBrazilianWhatsAppPhone(canonicalPhone)
     : canonicalPhone;
   if (!normalizedPhone) return null;
-  return `https://wa.me/${normalizedPhone}?text=${encodeURIComponent(message)}`;
+
+  const encodedMessage = encodeURIComponent(message);
+  if (options.useWeb) {
+    return `https://web.whatsapp.com/send?phone=${normalizedPhone}&text=${encodedMessage}`;
+  }
+
+  return `https://wa.me/${normalizedPhone}?text=${encodedMessage}`;
 }
 
 export function isAppleMobileDevice(value: PlatformNavigator): boolean {
   return /iPhone|iPad|iPod/iu.test(value.userAgent || "") ||
+    (value.platform === "MacIntel" && (value.maxTouchPoints || 0) > 1);
+}
+
+export function isMobileDevice(value: PlatformNavigator): boolean {
+  return /Android|iPhone|iPad|iPod|IEMobile|Opera Mini|Mobile/iu.test(value.userAgent || "") ||
     (value.platform === "MacIntel" && (value.maxTouchPoints || 0) > 1);
 }
 

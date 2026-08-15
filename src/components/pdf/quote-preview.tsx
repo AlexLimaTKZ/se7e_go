@@ -125,6 +125,7 @@ export function QuotePreview({ client, quote, onClose }: QuotePreviewProps) {
             const imageUrl = item.image_url && isAllowedVercelBlobUrl(item.image_url)
               ? `/api/images/proxy?url=${encodeURIComponent(item.image_url)}`
               : item.image_url;
+            const hasDimensions = Boolean(item.dimensions && item.dimensions.length > 0);
 
             return (
             <div
@@ -148,23 +149,21 @@ export function QuotePreview({ client, quote, onClose }: QuotePreviewProps) {
                   <div data-pdf-item-description style={{ flex: 1 }}>
                     <div style={{ marginBottom: "10px" }}><strong style={{ fontSize: "11pt", textTransform: "uppercase" }}>ITEM {index + 1} - {item.title}</strong></div>
 
-                    {item.dimensions && item.dimensions.length > 0 ? (
-                      <>
-                        <div style={{ margin: "8px 0 0 0", fontSize: "9pt" }}>
-                          {item.dimensions.map((dim, dimIdx) => (
-                            <div data-pdf-dimension-row key={dim.localId || `${dim.label}-${dimIdx}`} style={{ margin: "3px 0", display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                              <span>
-                                • {dim.width} x {dim.height}
-                                {dim.label ? ` — ${dim.label}` : ""}
-                                {dim.quantity > 1 ? ` (×${dim.quantity})` : ""}
-                              </span>
-                              <span data-pdf-currency style={{ whiteSpace: "nowrap", marginLeft: "10px" }}>
-                                R$ {formatCurrencyValue(dim.total_price)}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      </>
+                    {hasDimensions ? (
+                      <div style={{ margin: "8px 0 0 0", fontSize: "9pt" }}>
+                        {item.dimensions!.map((dim, dimIdx) => (
+                          <div data-pdf-dimension-row key={dim.localId || `${dim.label}-${dimIdx}`} style={{ margin: "3px 0", display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                            <span>
+                              • {dim.width} x {dim.height}
+                              {dim.label ? ` — ${dim.label}` : ""}
+                              {dim.quantity > 1 ? ` (×${dim.quantity})` : ""}
+                            </span>
+                            <span data-pdf-currency className="sm:hidden" style={{ whiteSpace: "nowrap", marginLeft: "10px" }}>
+                              R$ {formatCurrencyValue(dim.total_price)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
                     ) : (
                       <>
                         <div style={{ fontSize: "9pt" }}>LARGURA: {item.width} &nbsp; ALTURA: {item.height}</div>
@@ -178,12 +177,20 @@ export function QuotePreview({ client, quote, onClose }: QuotePreviewProps) {
                     )}
                   </div>
                   <div data-pdf-item-value style={{ textAlign: "right", fontSize: "10pt", minWidth: "180px" }}>
-                    {!(item.dimensions && item.dimensions.length > 0) && item.unit_price > 0 && (
+                    {hasDimensions ? (
+                      <div className="hidden sm:block">
+                        {item.dimensions!.map((dim, dimIdx) => (
+                          <p data-pdf-currency key={dim.localId || `${dim.label}-price-${dimIdx}`} style={{ margin: "3px 0", whiteSpace: "nowrap" }}>
+                            <span>{dim.label?.trim() || `Ambiente ${dimIdx + 1}`}:</span> R$ {formatCurrencyValue(dim.total_price)}
+                          </p>
+                        ))}
+                      </div>
+                    ) : item.unit_price > 0 ? (
                       <p data-pdf-currency style={{ margin: "3px 0", whiteSpace: "nowrap" }}>
                         VALOR UNITÁRIO: R$ {formatCurrencyValue(item.unit_price)}
                       </p>
-                    )}
-                    <p data-pdf-currency style={{ margin: "3px 0", whiteSpace: "nowrap" }}>
+                    ) : null}
+                    <p data-pdf-currency style={{ margin: hasDimensions ? "6px 0 3px" : "3px 0", whiteSpace: "nowrap" }}>
                       <strong>VALOR TOTAL: R$ {formatCurrencyValue(item.total_price)}</strong>
                     </p>
                   </div>
