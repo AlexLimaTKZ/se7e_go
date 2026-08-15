@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
     }
 
     const blob = await put(createSafeImageName(validation.extension), file, {
-      access: "public",
+      access: "private",
       contentType: validation.mimeType,
       addRandomSuffix: false,
     });

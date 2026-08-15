@@ -72,21 +72,22 @@ describe("QuotePreview PDF actions", () => {
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining("orçamento #789"));
   });
 
-  it("loads public product images eagerly from their permanent URL in the mobile preview", () => {
+  it("loads private product images eagerly through the authenticated same-origin proxy", () => {
+    const privateUrl = "https://store.private.blob.vercel-storage.com/catalog/janela.png";
     render(<QuotePreview
       {...previewProps}
       quote={{
         ...previewProps.quote,
         items: [{
           ...previewProps.quote.items[0],
-          image_url: "https://store.public.blob.vercel-storage.com/catalog/janela.png",
+          image_url: privateUrl,
         }],
       }}
     />);
 
     const image = screen.getByRole("img", { name: "Janela" });
     expect(image.getAttribute("src"))
-      .toBe("https://store.public.blob.vercel-storage.com/catalog/janela.png");
+      .toBe(`/api/images/proxy?url=${encodeURIComponent(privateUrl)}`);
     expect(image.getAttribute("loading")).toBe("eager");
   });
 

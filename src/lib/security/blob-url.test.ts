@@ -32,4 +32,31 @@ describe("Vercel Blob URL validation", () => {
       ),
     ).toBe(false);
   });
+
+  it("identifies public and private Blob stores without accepting lookalike hosts", async () => {
+    const implementation = await import("./blob-url").catch(() => null);
+    expect(implementation).not.toBeNull();
+    if (!implementation) return;
+
+    expect(
+      implementation.getVercelBlobAccess(
+        "https://store-id.public.blob.vercel-storage.com/catalog/image.png",
+      ),
+    ).toBe("public");
+    expect(
+      implementation.getVercelBlobAccess(
+        "https://store-id.private.blob.vercel-storage.com/catalog/image.png",
+      ),
+    ).toBe("private");
+    expect(
+      implementation.getVercelBlobAccess(
+        "https://store.private.blob.vercel-storage.com.evil.example/image.png",
+      ),
+    ).toBeNull();
+    expect(
+      implementation.getVercelBlobAccess(
+        "https://user:pass@store.private.blob.vercel-storage.com/image.png",
+      ),
+    ).toBeNull();
+  });
 });

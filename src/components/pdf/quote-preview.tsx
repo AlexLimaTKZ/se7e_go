@@ -7,6 +7,7 @@ import { QuotePdfActions } from "@/components/pdf/quote-pdf-actions";
 import { companyData } from "@/lib/company-data";
 import { formatDate, formatCurrencyValue } from "@/lib/formatters";
 import type { QuotePreviewClient, QuotePreviewData } from "@/lib/pdf/quote-preview-data";
+import { isAllowedVercelBlobUrl } from "@/lib/security/blob-url";
 
 interface QuotePreviewProps {
   client: QuotePreviewClient;
@@ -121,7 +122,9 @@ export function QuotePreview({ client, quote, onClose }: QuotePreviewProps) {
           <h2 style={{ textTransform: "uppercase", fontSize: "14pt", fontWeight: "bold", marginBottom: "15px" }}>PRODUTOS</h2>
 
           {quote.items.map((item, index) => {
-            const imageUrl = item.image_url;
+            const imageUrl = item.image_url && isAllowedVercelBlobUrl(item.image_url)
+              ? `/api/images/proxy?url=${encodeURIComponent(item.image_url)}`
+              : item.image_url;
 
             return (
             <div

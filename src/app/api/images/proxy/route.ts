@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { get } from "@vercel/blob";
-import { isAllowedPublicBlobUrl } from "@/lib/security/blob-url";
+import { getVercelBlobAccess } from "@/lib/security/blob-url";
 
 export const dynamic = "force-dynamic";
 
@@ -11,13 +11,14 @@ export async function GET(request: NextRequest) {
     return new NextResponse("Missing url parameter", { status: 400 });
   }
 
-  if (!isAllowedPublicBlobUrl(url)) {
+  const blobAccess = getVercelBlobAccess(url);
+  if (!blobAccess) {
     return new NextResponse("Invalid URL", { status: 403 });
   }
 
   try {
     const result = await get(url, {
-      access: "public",
+      access: blobAccess,
       abortSignal: request.signal,
     });
     if (!result || result.statusCode !== 200) {
@@ -30,7 +31,11 @@ export async function GET(request: NextRequest) {
     }
     const headers = new Headers();
     headers.set("Content-Type", contentType);
-    headers.set("Cache-Control", "public, max-age=31536000, immutable");
+    headers.set(
+      "Cache-Control",
+      blobAccess === "private" ? "private, no-cache" : "public, max-age=31536000, immutable",
+    );
+    headers.set("X-Content-Type-Options", "nosniff");
 
     return new NextResponse(result.stream, { headers });
   } catch (error) {

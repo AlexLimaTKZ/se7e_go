@@ -75,4 +75,36 @@ describe("PDF image URL validation", () => {
     expect(optimized?.format).toBe("jpg");
     expect(optimized?.data.byteLength).toBeGreaterThan(0);
   });
+
+  it("reads private Vercel Blob images with authenticated storage access", async () => {
+    const privateUrl = "https://store.private.blob.vercel-storage.com/item.png";
+    blob.get.mockResolvedValue({
+      statusCode: 200,
+      stream: streamBytes(PNG_1X1),
+      headers: new Headers({ "Content-Type": "image/png" }),
+      blob: {
+        url: privateUrl,
+        downloadUrl: `${privateUrl}?download=1`,
+        pathname: "item.png",
+        contentDisposition: "inline",
+        cacheControl: "private, max-age=3600",
+        uploadedAt: new Date(),
+        etag: "private-etag",
+        contentType: "image/png",
+        size: PNG_1X1.byteLength,
+      },
+    });
+    const images = await loadModule();
+    expect(images).not.toBeNull();
+    if (!images) return;
+
+    const optimized = await images.fetchOptimizedPdfImage(privateUrl);
+
+    expect(blob.get).toHaveBeenCalledWith(
+      privateUrl,
+      expect.objectContaining({ access: "private" }),
+    );
+    expect(optimized?.format).toBe("jpg");
+    expect(optimized?.data.byteLength).toBeGreaterThan(0);
+  });
 });

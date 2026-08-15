@@ -1,6 +1,9 @@
 import sharp from "sharp";
 import { get } from "@vercel/blob";
-import { isAllowedPublicBlobUrl } from "@/lib/security/blob-url";
+import {
+  getVercelBlobAccess,
+  isAllowedVercelBlobUrl,
+} from "@/lib/security/blob-url";
 
 const MAX_SOURCE_IMAGE_BYTES = 10 * 1024 * 1024;
 const IMAGE_TIMEOUT_MS = 8_000;
@@ -11,7 +14,7 @@ export interface PdfImageSource {
 }
 
 export function isAllowedPdfImageUrl(value: string): boolean {
-  if (isAllowedPublicBlobUrl(value)) return true;
+  if (isAllowedVercelBlobUrl(value)) return true;
 
   try {
     const url = new URL(value);
@@ -34,9 +37,10 @@ export async function fetchOptimizedPdfImage(value: string): Promise<PdfImageSou
   const timeout = setTimeout(() => controller.abort(), IMAGE_TIMEOUT_MS);
   try {
     let source: Buffer;
-    if (isAllowedPublicBlobUrl(value)) {
+    const blobAccess = getVercelBlobAccess(value);
+    if (blobAccess) {
       const result = await get(value, {
-        access: "public",
+        access: blobAccess,
         abortSignal: controller.signal,
       });
       if (
