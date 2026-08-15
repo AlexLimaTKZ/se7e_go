@@ -39,12 +39,13 @@ export async function GET(
     const pdf = await renderQuotePdf(quote);
     const filename = buildQuotePdfFilename(quote.quoteNumber, quote.client.name);
     const body = Uint8Array.from(pdf).buffer;
+    const disposition = request.nextUrl.searchParams.get("download") === "1" ? "attachment" : "inline";
 
     return new Response(body, {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `inline; filename="${filename}"`,
+        "Content-Disposition": `${disposition}; filename="${filename}"`,
         "Cache-Control": "private, no-store, max-age=0",
         "X-Content-Type-Options": "nosniff",
         "X-Robots-Tag": "noindex, nofollow, noarchive",
