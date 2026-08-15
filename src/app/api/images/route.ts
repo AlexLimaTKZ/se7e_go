@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { put, list } from "@vercel/blob";
+import {
+  MAX_IMAGE_BYTES,
+  createSafeImageName,
+  validateImageUpload,
+} from "@/lib/security/image-file";
 
 export const dynamic = "force-dynamic";
 
@@ -27,18 +32,33 @@ export async function GET() {
 // POST /api/images — Upload de nova imagem
 export async function POST(request: NextRequest) {
   try {
+    const contentLength = Number(request.headers.get("content-length") || 0);
+    if (contentLength > MAX_IMAGE_BYTES + 1024 * 1024) {
+      return NextResponse.json(
+        { error: "A imagem deve ter no máximo 10 MB." },
+        { status: 413 },
+      );
+    }
     const formData = await request.formData();
-    const file = formData.get("file") as File;
+    const file = formData.get("file");
 
-    if (!file) {
+    if (!(file instanceof File)) {
       return NextResponse.json(
         { error: "Nenhum arquivo enviado." },
         { status: 400 }
       );
     }
 
-    const blob = await put(file.name, file, {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const validation = validateImageUpload(file, bytes);
+    if (!validation.ok) {
+      return NextResponse.json({ error: validation.error }, { status: 400 });
+    }
+
+    const blob = await put(createSafeImageName(validation.extension), file, {
       access: "public",
+      contentType: validation.mimeType,
+      addRandomSuffix: false,
     });
 
     return NextResponse.json({

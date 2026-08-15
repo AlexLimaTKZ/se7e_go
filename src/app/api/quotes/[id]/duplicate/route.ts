@@ -1,109 +1,110 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { quotes, quoteItems, quoteItemDimensions } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
+import { getDb } from "@/lib/db";
+import { quoteItemDimensions, quoteItems, quotes } from "@/lib/db/schema";
+import { resolveCopyQuoteNumber } from "@/lib/quotes/quote-repository";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const { id } = await params;
-    const quoteId = parseInt(id);
-
-    // Buscar orçamento original
-    const originalQuote = await db
-      .select()
-      .from(quotes)
-      .where(eq(quotes.id, quoteId))
-      .limit(1);
-
-    if (originalQuote.length === 0) {
-      return NextResponse.json(
-        { error: "Orçamento não encontrado." },
-        { status: 404 }
-      );
+    const quoteId = Number.parseInt((await params).id, 10);
+    if (!Number.isInteger(quoteId) || quoteId <= 0) {
+      return NextResponse.json({ error: "ID invalido." }, { status: 400 });
     }
 
-    // Buscar itens originais
-    const originalItems = await db
-      .select()
-      .from(quoteItems)
-      .where(eq(quoteItems.quoteId, quoteId));
+    const newQuoteId = await getDb().transaction(async (transaction) => {
+      const [original] = await transaction
+        .select()
+        .from(quotes)
+        .where(eq(quotes.id, quoteId))
+        .limit(1);
+      if (!original) return null;
 
-    // Duplicar orçamento principal
-    const now = new Date().toISOString();
-    const [newQuote] = await db
-      .insert(quotes)
-      .values({
-        quoteNumber: `${originalQuote[0].quoteNumber}-CÓPIA`,
-        clientId: originalQuote[0].clientId,
-        date: now.split("T")[0],
-        deliveryDate: originalQuote[0].deliveryDate,
-        validUntil: originalQuote[0].validUntil,
-        total: originalQuote[0].total,
-        status: "rascunho",
-        paymentConditions: originalQuote[0].paymentConditions,
-        discount: originalQuote[0].discount,
-        notes: originalQuote[0].notes,
-        createdAt: now,
-        updatedAt: now,
-      })
-      .returning({ id: quotes.id });
+      const originalItems = await transaction
+        .select()
+        .from(quoteItems)
+        .where(eq(quoteItems.quoteId, quoteId));
+      const originalDimensions =
+        originalItems.length > 0
+          ? await transaction
+              .select()
+              .from(quoteItemDimensions)
+              .where(inArray(quoteItemDimensions.quoteItemId, originalItems.map((item) => item.id)))
+          : [];
+      const quoteNumber = await resolveCopyQuoteNumber(transaction, original.quoteNumber);
+      const now = new Date().toISOString();
+      const [copy] = await transaction
+        .insert(quotes)
+        .values({
+          quoteNumber,
+          clientId: original.clientId,
+          date: now.slice(0, 10),
+          deliveryDate: original.deliveryDate,
+          validUntil: original.validUntil,
+          total: original.total,
+          status: "rascunho",
+          paymentConditions: original.paymentConditions,
+          discount: original.discount,
+          notes: original.notes,
+          createdAt: now,
+          updatedAt: now,
+        })
+        .returning({ id: quotes.id });
+      if (!copy) throw new Error("A copia nao foi criada.");
 
-    // Duplicar itens (um a um para obter IDs e copiar dimensões)
-    if (originalItems.length > 0) {
-      for (const item of originalItems) {
-        const [newItem] = await db
+      if (originalItems.length > 0) {
+        const copiedItems = await transaction
           .insert(quoteItems)
-          .values({
-            quoteId: newQuote.id,
-            title: item.title,
-            imageUrl: item.imageUrl,
-            width: item.width,
-            height: item.height,
-            glass: item.glass,
-            aluminumColor: item.aluminumColor,
-            hardwareColor: item.hardwareColor,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
-            totalPrice: item.totalPrice,
-          })
+          .values(
+            originalItems.map((item) => ({
+              quoteId: copy.id,
+              title: item.title,
+              imageUrl: item.imageUrl,
+              width: item.width,
+              height: item.height,
+              glass: item.glass,
+              aluminumColor: item.aluminumColor,
+              hardwareColor: item.hardwareColor,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+              totalPrice: item.totalPrice,
+            })),
+          )
           .returning({ id: quoteItems.id });
-
-        // Copiar dimensões do item original
-        const originalDims = await db
-          .select()
-          .from(quoteItemDimensions)
-          .where(eq(quoteItemDimensions.quoteItemId, item.id));
-
-        if (originalDims.length > 0) {
-          const dimsToInsert = originalDims.map((dim: typeof quoteItemDimensions.$inferSelect) => ({
-            quoteItemId: newItem.id,
-            label: dim.label,
-            width: dim.width,
-            height: dim.height,
-            quantity: dim.quantity,
-            unitPrice: dim.unitPrice,
-            totalPrice: dim.totalPrice,
-          }));
-          await db.insert(quoteItemDimensions).values(dimsToInsert);
+        const newIdByOldId = new Map(
+          originalItems.map((item, index) => [item.id, copiedItems[index].id]),
+        );
+        if (originalDimensions.length > 0) {
+          await transaction.insert(quoteItemDimensions).values(
+            originalDimensions.map((dimension) => ({
+              quoteItemId: newIdByOldId.get(dimension.quoteItemId)!,
+              label: dimension.label,
+              width: dimension.width,
+              height: dimension.height,
+              quantity: dimension.quantity,
+              unitPrice: dimension.unitPrice,
+              totalPrice: dimension.totalPrice,
+            })),
+          );
         }
       }
-    }
+      return copy.id;
+    });
 
+    if (!newQuoteId) {
+      return NextResponse.json({ error: "Orcamento nao encontrado." }, { status: 404 });
+    }
     return NextResponse.json({
       success: true,
-      id: newQuote.id,
-      message: "Orçamento duplicado com sucesso!",
+      id: newQuoteId,
+      message: "Orcamento duplicado com sucesso!",
     });
   } catch (error) {
-    console.error("Erro ao duplicar orçamento:", error);
-    return NextResponse.json(
-      { error: "Erro ao processar duplicação do orçamento." },
-      { status: 500 }
-    );
+    console.error("Erro ao duplicar orcamento:", error);
+    return NextResponse.json({ error: "Erro ao duplicar o orcamento." }, { status: 500 });
   }
 }

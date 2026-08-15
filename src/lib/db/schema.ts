@@ -60,6 +60,13 @@ export const notes = sqliteTable("notes", {
   createdAt: text("created_at"),
 });
 
+export const loginAttempts = sqliteTable("login_attempts", {
+  ipHash: text("ip_hash").primaryKey(),
+  count: integer("count").notNull().default(0),
+  blockedUntil: integer("blocked_until"),
+  updatedAt: integer("updated_at").notNull(),
+});
+
 // Drizzle relations (required for db.query API with `with`)
 export const clientsRelations = relations(clients, ({ many }) => ({
   quotes: many(quotes),

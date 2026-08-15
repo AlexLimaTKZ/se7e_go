@@ -1,239 +1,170 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { clients, quotes, quoteItems, quoteItemDimensions } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
+import { getDb } from "@/lib/db";
+import { clients, quoteItemDimensions, quoteItems, quotes } from "@/lib/db/schema";
+import { parseQuoteInput } from "@/lib/quotes/quote-input";
+import {
+  insertQuoteItems,
+  resolveQuoteNumber,
+  upsertClient,
+} from "@/lib/quotes/quote-repository";
 
 export const dynamic = "force-dynamic";
 
-// GET /api/quotes/[id] — Buscar orçamento por ID
+function parseId(id: string): number | null {
+  const value = Number.parseInt(id, 10);
+  return Number.isInteger(value) && value > 0 ? value : null;
+}
+
 export async function GET(
   _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const { id } = await params;
-    const quoteId = parseInt(id);
+    const quoteId = parseId((await params).id);
+    if (!quoteId) return NextResponse.json({ error: "ID invalido." }, { status: 400 });
 
-    const quote = await db
-      .select()
+    const database = getDb();
+    const [quote] = await database
+      .select({ quote: quotes, client: clients })
       .from(quotes)
+      .leftJoin(clients, eq(quotes.clientId, clients.id))
       .where(eq(quotes.id, quoteId))
       .limit(1);
-
-    if (quote.length === 0) {
-      return NextResponse.json(
-        { error: "Orçamento não encontrado." },
-        { status: 404 }
-      );
+    if (!quote) {
+      return NextResponse.json({ error: "Orcamento nao encontrado." }, { status: 404 });
     }
 
-    const client = await db
-      .select()
-      .from(clients)
-      .where(eq(clients.id, quote[0].clientId!))
-      .limit(1);
-
-    const items = await db
-      .select()
-      .from(quoteItems)
-      .where(eq(quoteItems.quoteId, quoteId));
-
-    // Buscar dimensões de cada item
-    const formattedItems = await Promise.all(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      items.map(async (item: any) => {
-        const dims = await db
-          .select()
-          .from(quoteItemDimensions)
-          .where(eq(quoteItemDimensions.quoteItemId, item.id));
-
-        return {
-          id: item.id,
-          image_url: item.imageUrl,
-          title: item.title,
-          width: item.width,
-          height: item.height,
-          glass: item.glass,
-          aluminum: item.aluminumColor,
-          hardware: item.hardwareColor,
-          quantity: item.quantity,
-          unit_price: item.unitPrice,
-          total_price: item.totalPrice,
-          dimensions: dims.map((d: typeof quoteItemDimensions.$inferSelect) => ({
-            id: d.id,
-            label: d.label,
-            width: d.width,
-            height: d.height,
-            quantity: d.quantity,
-            unit_price: d.unitPrice,
-            total_price: d.totalPrice,
-          })),
-        };
-      })
-    );
+    const items = await database.select().from(quoteItems).where(eq(quoteItems.quoteId, quoteId));
+    const dimensions =
+      items.length > 0
+        ? await database
+            .select()
+            .from(quoteItemDimensions)
+            .where(inArray(quoteItemDimensions.quoteItemId, items.map((item) => item.id)))
+        : [];
+    const dimensionsByItem = new Map<number, typeof dimensions>();
+    for (const dimension of dimensions) {
+      const itemDimensions = dimensionsByItem.get(dimension.quoteItemId) || [];
+      itemDimensions.push(dimension);
+      dimensionsByItem.set(dimension.quoteItemId, itemDimensions);
+    }
+    const formattedItems = items.map((item) => ({
+      id: item.id,
+      image_url: item.imageUrl,
+      title: item.title,
+      width: item.width,
+      height: item.height,
+      glass: item.glass,
+      aluminum: item.aluminumColor,
+      hardware: item.hardwareColor,
+      quantity: item.quantity,
+      unit_price: item.unitPrice,
+      total_price: item.totalPrice,
+      dimensions: (dimensionsByItem.get(item.id) || []).map((dimension) => ({
+        id: dimension.id,
+        label: dimension.label,
+        width: dimension.width,
+        height: dimension.height,
+        quantity: dimension.quantity,
+        unit_price: dimension.unitPrice,
+        total_price: dimension.totalPrice,
+      })),
+    }));
 
     return NextResponse.json({
-      ...quote[0],
-      status: quote[0].status || "rascunho",
-      payment_conditions: quote[0].paymentConditions || "",
-      discount: quote[0].discount || 0,
-      notes: quote[0].notes || "",
-      client: client[0] || null,
+      ...quote.quote,
+      status: quote.quote.status || "rascunho",
+      payment_conditions: quote.quote.paymentConditions || "",
+      discount: quote.quote.discount || 0,
+      notes: quote.quote.notes || "",
+      client: quote.client,
       items: formattedItems,
     });
   } catch (error) {
-    console.error("Erro ao buscar orçamento:", error);
-    return NextResponse.json(
-      { error: "Erro ao buscar orçamento." },
-      { status: 500 }
-    );
+    console.error("Erro ao buscar orcamento:", error);
+    return NextResponse.json({ error: "Erro ao buscar orcamento." }, { status: 500 });
   }
 }
 
-// PUT /api/quotes/[id] — Atualizar orçamento
 export async function PUT(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const { id } = await params;
-    const quoteId = parseInt(id);
-    const body = await request.json();
-
-    // Inserir ou atualizar cliente
-    const existingClient = await db
-      .select()
-      .from(clients)
-      .where(eq(clients.name, body.client.name))
-      .limit(1);
-
-    let clientId: number;
-
-    if (existingClient.length > 0) {
-      await db
-        .update(clients)
-        .set({
-          address: body.client.address,
-          phone: body.client.phone,
-        })
-        .where(eq(clients.name, body.client.name));
-      clientId = existingClient[0].id;
-    } else {
-      const [newClient] = await db
-        .insert(clients)
-        .values({
-          name: body.client.name,
-          address: body.client.address,
-          phone: body.client.phone,
-        })
-        .returning({ id: clients.id });
-      clientId = newClient.id;
-    }
-
-    // Atualizar o orçamento
-    await db
-      .update(quotes)
-      .set({
-        quoteNumber: body.quote_number,
-        clientId,
-        date: body.date,
-        deliveryDate: body.delivery_date || null,
-        validUntil: body.valid_until || null,
-        total: parseFloat(body.total),
-        status: body.status || "rascunho",
-        paymentConditions: body.payment_conditions || null,
-        discount: body.discount ? parseFloat(body.discount) : null,
-        notes: body.notes || null,
-        updatedAt: new Date().toISOString(),
-      })
-      .where(eq(quotes.id, quoteId));
-
-    // Deletar itens antigos (CASCADE remove dimensões automaticamente)
-    await db.delete(quoteItems).where(eq(quoteItems.quoteId, quoteId));
-
-    // Inserir novos itens (um a um para obter IDs e vincular dimensões)
-    if (body.items && body.items.length > 0) {
-      for (const item of body.items) {
-        const [newItem] = await db
-          .insert(quoteItems)
-          .values({
-            quoteId,
-            title: item.title,
-            imageUrl: item.image_url || null,
-            width: item.width ? parseFloat(item.width) : null,
-            height: item.height ? parseFloat(item.height) : null,
-            glass: item.glass || null,
-            aluminumColor: item.aluminum || null,
-            hardwareColor: item.hardware || null,
-            quantity: item.quantity ? parseInt(item.quantity) : 1,
-            unitPrice: item.unit_price ? parseFloat(item.unit_price) : null,
-            totalPrice: item.total_price ? parseFloat(item.total_price) : 0,
-          })
-          .returning({ id: quoteItems.id });
-
-        // Inserir dimensões do item (se existirem)
-        if (item.dimensions && item.dimensions.length > 0) {
-          const dimsToInsert = item.dimensions.map(
-            (dim: {
-              label?: string;
-              width?: string;
-              height?: string;
-              quantity?: string;
-              unit_price?: string;
-              total_price?: string;
-            }) => ({
-              quoteItemId: newItem.id,
-              label: dim.label || null,
-              width: dim.width ? parseFloat(dim.width) : null,
-              height: dim.height ? parseFloat(dim.height) : null,
-              quantity: dim.quantity ? parseInt(dim.quantity) : 1,
-              unitPrice: dim.unit_price ? parseFloat(dim.unit_price) : null,
-              totalPrice: dim.total_price ? parseFloat(dim.total_price) : 0,
-            })
-          );
-          await db.insert(quoteItemDimensions).values(dimsToInsert);
-        }
-      }
-    }
-
-    return NextResponse.json({ message: "Orçamento atualizado com sucesso!" });
-  } catch (error) {
-    console.error("Erro ao atualizar orçamento:", error);
-    return NextResponse.json(
-      { error: "Erro ao atualizar o orçamento." },
-      { status: 500 }
-    );
-  }
-}
-
-// DELETE /api/quotes/[id] — Excluir orçamento
-export async function DELETE(
-  _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const { id } = await params;
-    const quoteId = parseInt(id);
-
-    // Os itens são deletados automaticamente por CASCADE
-    const result = await db
-      .delete(quotes)
-      .where(eq(quotes.id, quoteId))
-      .returning({ id: quotes.id });
-
-    if (result.length === 0) {
+    const quoteId = parseId((await params).id);
+    if (!quoteId) return NextResponse.json({ error: "ID invalido." }, { status: 400 });
+    const parsed = parseQuoteInput(await request.json());
+    if (!parsed.ok) {
       return NextResponse.json(
-        { error: "Orçamento não encontrado." },
-        { status: 404 }
+        { error: "Revise os dados do orcamento.", issues: parsed.issues },
+        { status: 422 },
       );
     }
 
-    return NextResponse.json({ message: "Orçamento excluído com sucesso." });
+    const result = await getDb().transaction(async (transaction) => {
+      const [existing] = await transaction
+        .select({ id: quotes.id })
+        .from(quotes)
+        .where(eq(quotes.id, quoteId))
+        .limit(1);
+      if (!existing) return null;
+
+      const data = parsed.data;
+      const clientId = await upsertClient(transaction, data.client);
+      const quoteNumber = await resolveQuoteNumber(transaction, data.quoteNumber, quoteId);
+      await transaction
+        .update(quotes)
+        .set({
+          quoteNumber,
+          clientId,
+          date: data.date,
+          deliveryDate: data.deliveryDate,
+          validUntil: data.validUntil,
+          total: data.total,
+          status: data.status,
+          paymentConditions: data.paymentConditions || null,
+          discount: data.discount,
+          notes: data.notes || null,
+          updatedAt: new Date().toISOString(),
+        })
+        .where(eq(quotes.id, quoteId));
+      await transaction.delete(quoteItems).where(eq(quoteItems.quoteId, quoteId));
+      await insertQuoteItems(transaction, quoteId, data.items);
+      return { quoteNumber };
+    });
+
+    if (!result) {
+      return NextResponse.json({ error: "Orcamento nao encontrado." }, { status: 404 });
+    }
+    return NextResponse.json({
+      success: true,
+      ...result,
+      message: "Orcamento atualizado com sucesso!",
+    });
   } catch (error) {
-    console.error("Erro ao deletar orçamento:", error);
-    return NextResponse.json(
-      { error: "Erro ao deletar orçamento." },
-      { status: 500 }
-    );
+    console.error("Erro ao atualizar orcamento:", error);
+    return NextResponse.json({ error: "Erro ao atualizar o orcamento." }, { status: 500 });
+  }
+}
+
+export async function DELETE(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    const quoteId = parseId((await params).id);
+    if (!quoteId) return NextResponse.json({ error: "ID invalido." }, { status: 400 });
+    const deleted = await getDb()
+      .delete(quotes)
+      .where(eq(quotes.id, quoteId))
+      .returning({ id: quotes.id });
+    if (deleted.length === 0) {
+      return NextResponse.json({ error: "Orcamento nao encontrado." }, { status: 404 });
+    }
+    return NextResponse.json({ message: "Orcamento excluido com sucesso." });
+  } catch (error) {
+    console.error("Erro ao deletar orcamento:", error);
+    return NextResponse.json({ error: "Erro ao deletar orcamento." }, { status: 500 });
   }
 }

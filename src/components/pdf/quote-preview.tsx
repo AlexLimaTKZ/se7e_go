@@ -1,54 +1,54 @@
 "use client";
 
 import { createPortal } from "react-dom";
-import { Button } from "@/components/ui/button";
+import { useEffect, useRef } from "react";
+import Image from "next/image";
+import { QuotePdfActions } from "@/components/pdf/quote-pdf-actions";
 import { companyData } from "@/lib/company-data";
 import { formatDate, formatCurrencyValue } from "@/lib/formatters";
-import { Printer, X } from "lucide-react";
+import type { QuotePreviewClient, QuotePreviewData } from "@/lib/pdf/quote-preview-data";
 
 interface QuotePreviewProps {
-  client: {
-    name: string;
-    address: string;
-    phone: string;
-  };
-  quote: {
-    quote_number: string;
-    date: string;
-    delivery_date: string;
-    valid_until: string;
-    payment_conditions?: string;
-    discount?: number;
-    notes?: string;
-    total: number;
-    items: Array<{
-      title: string;
-      image_url: string;
-      width: number;
-      height: number;
-      glass: string;
-      aluminum: string;
-      hardware: string;
-      quantity: number;
-      unit_price: number;
-      total_price: number;
-      dimensions?: Array<{
-        label: string;
-        width: number;
-        height: number;
-        quantity: number;
-        unit_price: number;
-        total_price: number;
-      }>;
-    }>;
-  };
+  client: QuotePreviewClient;
+  quote: QuotePreviewData;
   onClose: () => void;
 }
 
 // formatDate e formatCurrencyValue importados de @/lib/formatters
 
 export function QuotePreview({ client, quote, onClose }: QuotePreviewProps) {
-  // O handleDownload agora é puramente nativo. Rápido e infalível.
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    closeButtonRef.current?.focus();
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+      if (event.key !== "Tab") return;
+      const modal = closeButtonRef.current?.closest<HTMLElement>("[data-pdf-modal]");
+      const controls = modal?.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+      );
+      if (!controls?.length) return;
+      const first = controls[0];
+      const last = controls[controls.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [onClose]);
+
   const handlePrint = () => {
     window.print();
   };
@@ -56,36 +56,32 @@ export function QuotePreview({ client, quote, onClose }: QuotePreviewProps) {
   return createPortal(
     // Container principal: flex column preenche toda a tela
     // No iOS Safari, `fixed` dentro de `overflow:auto` não funciona.
-    // Solução: separar toolbar (flex-shrink-0) do conteúdo scrollável (flex-1).
+    // A barra fica fora do scroll e vai para a zona do polegar em telas pequenas.
     <div
       data-pdf-modal
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="quote-preview-title"
       className="fixed inset-0 z-50 flex flex-col bg-black/70 backdrop-blur-sm"
     >
-      {/* Toolbar - FORA do scroll, sempre visível no topo */}
-      <div
-        data-pdf-toolbar
-        className="flex flex-shrink-0 items-center justify-end gap-2 p-3"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <Button onClick={handlePrint} className="gap-2 font-semibold shadow-lg">
-          <Printer className="h-4 w-4" />
-          Imprimir / Salvar PDF
-        </Button>
-        <Button variant="secondary" size="icon" onClick={onClose} className="shadow-lg">
-          <X className="h-5 w-5" />
-        </Button>
-      </div>
+      <QuotePdfActions
+        client={client}
+        quote={quote}
+        closeButtonRef={closeButtonRef}
+        onClose={onClose}
+        onPrint={handlePrint}
+      />
 
       {/* Área scrollável - independente da toolbar */}
       <div
         data-pdf-scroll
-        className="flex-1 overflow-auto"
+        className="order-1 flex-1 overflow-auto sm:order-2"
         onClick={onClose}
       >
         <div
           data-pdf-content
           onClick={(e) => e.stopPropagation()}
-          className="mx-auto mb-8 w-[210mm] bg-white text-black shadow-2xl"
+          className="mx-auto mb-8 w-[calc(100vw-1rem)] max-w-[210mm] bg-white text-black shadow-2xl"
           style={{
             fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif",
             fontSize: "10pt",
@@ -97,8 +93,8 @@ export function QuotePreview({ client, quote, onClose }: QuotePreviewProps) {
           }}
         >
           {/* Header */}
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", borderBottom: "2px solid #000", paddingBottom: "10px", marginBottom: "12px" }}>
-            <div style={{ maxWidth: "60%" }}>
+          <div data-pdf-header style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", borderBottom: "2px solid #000", paddingBottom: "10px", marginBottom: "12px" }}>
+            <div data-pdf-company style={{ maxWidth: "60%" }}>
               <h1 style={{ fontSize: "18pt", margin: "0 0 3px 0", fontWeight: "bold" }}>
                 {companyData.name.toUpperCase()}
               </h1>
@@ -108,9 +104,9 @@ export function QuotePreview({ client, quote, onClose }: QuotePreviewProps) {
               <p style={{ margin: "2px 0", fontSize: "9pt" }}>EMAIL: {companyData.email} &nbsp; CEL: {companyData.cel}</p>
             </div>
 
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", minWidth: "200px" }}>
-              <img src="/se7e-logo-v2.png" alt="Logo" style={{ width: "80px", height: "auto", objectFit: "contain", marginBottom: "8px" }} />
-              <h2 style={{ fontSize: "14pt", margin: "0", textAlign: "right" }}>ORÇAMENTO {quote.quote_number}</h2>
+            <div data-pdf-quote-meta style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", minWidth: "200px" }}>
+              <Image data-pdf-logo src="/se7e-logo-v2.png" alt="Logo SE7E" width={80} height={80} style={{ width: "80px", height: "auto", objectFit: "contain", marginBottom: "8px" }} priority />
+              <h2 id="quote-preview-title" style={{ fontSize: "14pt", margin: "0", textAlign: "right" }}>ORÇAMENTO {quote.quote_number}</h2>
               <p style={{ fontSize: "11pt", marginTop: "3px", textAlign: "right" }}>{formatDate(quote.date)}</p>
             </div>
           </div>
@@ -131,7 +127,7 @@ export function QuotePreview({ client, quote, onClose }: QuotePreviewProps) {
 
             return (
             <div
-              key={index}
+              key={item.localId || `${item.title}-${index}`}
               data-pdf-item
               style={{
                 pageBreakInside: "avoid",
@@ -139,21 +135,21 @@ export function QuotePreview({ client, quote, onClose }: QuotePreviewProps) {
                 marginBottom: "24px",
               }}
             >
-              <div style={{ display: "flex", alignItems: "flex-start", gap: "20px", paddingBottom: "15px", borderBottom: "1px solid #ccc" }}>
+              <div data-pdf-item-row style={{ display: "flex", alignItems: "flex-start", gap: "20px", paddingBottom: "15px", borderBottom: "1px solid #ccc" }}>
                 {imageUrl && (
-                  <div style={{ flexBasis: "120px", flexShrink: 0, overflow: "hidden" }}>
-                    <img src={imageUrl} alt={item.title} style={{ width: "120px", height: "120px", objectFit: "contain", border: "1px solid #eee" }} />
+                  <div data-pdf-item-image style={{ flexBasis: "120px", flexShrink: 0, overflow: "hidden" }}>
+                    <Image src={imageUrl} alt={item.title} width={120} height={120} unoptimized style={{ width: "120px", height: "120px", objectFit: "contain", border: "1px solid #eee" }} />
                   </div>
                 )}
-                <div style={{ flex: 1, display: "flex", justifyContent: "space-between" }}>
-                  <div style={{ flex: 1 }}>
+                <div data-pdf-item-details style={{ flex: 1, display: "flex", justifyContent: "space-between" }}>
+                  <div data-pdf-item-description style={{ flex: 1 }}>
                     <div style={{ marginBottom: "10px" }}><strong style={{ fontSize: "11pt", textTransform: "uppercase" }}>ITEM {index + 1} - {item.title}</strong></div>
 
                     {item.dimensions && item.dimensions.length > 0 ? (
                       <>
                         <div style={{ margin: "8px 0 0 0", fontSize: "9pt" }}>
                           {item.dimensions.map((dim, dimIdx) => (
-                            <div key={dimIdx} style={{ margin: "3px 0", display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                            <div data-pdf-dimension-row key={dim.localId || `${dim.label}-${dimIdx}`} style={{ margin: "3px 0", display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
                               <span>
                                 • {dim.width} x {dim.height}
                                 {dim.label ? ` — ${dim.label}` : ""}
@@ -178,7 +174,7 @@ export function QuotePreview({ client, quote, onClose }: QuotePreviewProps) {
                       </>
                     )}
                   </div>
-                  <div style={{ textAlign: "right", fontSize: "10pt", minWidth: "180px" }}>
+                  <div data-pdf-item-value style={{ textAlign: "right", fontSize: "10pt", minWidth: "180px" }}>
                     {!(item.dimensions && item.dimensions.length > 0) && item.unit_price > 0 && (
                       <p data-pdf-currency style={{ margin: "3px 0", whiteSpace: "nowrap" }}>
                         VALOR UNITÁRIO: R$ {formatCurrencyValue(item.unit_price)}
@@ -203,13 +199,13 @@ export function QuotePreview({ client, quote, onClose }: QuotePreviewProps) {
               marginTop: "24px",
             }}
           >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", paddingTop: "10px", borderTop: "2px solid #000" }}>
+            <div data-pdf-summary style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", paddingTop: "10px", borderTop: "2px solid #000" }}>
               <div>
                 {quote.delivery_date && <p style={{ margin: "5px 0", fontSize: "9pt" }}>PREVISÃO DE ENTREGA: <strong>{formatDate(quote.delivery_date)}</strong></p>}
                 {quote.valid_until && <p style={{ margin: "5px 0", fontSize: "9pt" }}>ORÇAMENTO VÁLIDO ATÉ: <strong>{formatDate(quote.valid_until)}</strong></p>}
                 {quote.payment_conditions && <p style={{ margin: "5px 0", fontSize: "9pt" }}>CONDIÇÕES DE PAGAMENTO: <strong>{quote.payment_conditions}</strong></p>}
               </div>
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
+              <div data-pdf-totals style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
                 {(quote.discount ?? 0) > 0 && (
                   <div data-pdf-currency style={{ padding: "0 15px", marginBottom: "5px", display: "flex", alignItems: "center", gap: "10px", color: "red", whiteSpace: "nowrap" }}>
                     <span style={{ fontSize: "11pt" }}>DESCONTO:</span>
@@ -231,7 +227,7 @@ export function QuotePreview({ client, quote, onClose }: QuotePreviewProps) {
               </div>
             )}
 
-            <div style={{ display: "flex", justifyContent: "space-between", marginTop: "40px", gap: "40px" }}>
+            <div data-pdf-signatures style={{ display: "flex", justifyContent: "space-between", marginTop: "40px", gap: "40px" }}>
               <div style={{ textAlign: "center", flex: 1, borderTop: "1px solid #000", paddingTop: "5px" }}>
                 <p style={{ fontWeight: "bold", textTransform: "uppercase", margin: 0, fontSize: "10pt" }}>{client.name.toUpperCase()}</p>
               </div>

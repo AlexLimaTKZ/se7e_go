@@ -1,11 +1,16 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Toaster } from "sonner";
 import { ThemeProvider } from "@/components/theme-provider";
 import "./globals.css";
 
 // Cormorant Garamond - editorial serif for premium branding
-export const viewport = {
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
   themeColor: "#0A0A0A",
+  viewportFit: "cover",
+  interactiveWidget: "resizes-visual",
+  colorScheme: "light dark",
 };
 
 export const metadata: Metadata = {
@@ -25,9 +30,6 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="pt-BR" suppressHydrationWarning>
-      <head>
-        {/* Usando fonte Geist padrão do Next.js App Router (já configurada no globals.css) */}
-      </head>
       <body className="noise-overlay min-h-screen bg-background text-foreground antialiased selection:bg-primary/30">
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           {children}

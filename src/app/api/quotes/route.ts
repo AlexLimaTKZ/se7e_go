@@ -1,149 +1,119 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { clients, quotes, quoteItems, quoteItemDimensions } from "@/lib/db/schema";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray, like, or, sql } from "drizzle-orm";
+import { getDb } from "@/lib/db";
+import { clients, quotes } from "@/lib/db/schema";
+import { parseQuoteInput } from "@/lib/quotes/quote-input";
+import {
+  insertQuoteItems,
+  resolveQuoteNumber,
+  upsertClient,
+} from "@/lib/quotes/quote-repository";
+import { normalizeQuoteStatus } from "@/lib/dashboard/dashboard-presentation";
 
 export const dynamic = "force-dynamic";
 
-// GET /api/quotes — Listar todos os orçamentos
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const result = await db
-      .select({
-        id: quotes.id,
-        quoteNumber: quotes.quoteNumber,
-        clientName: clients.name,
-        clientPhone: clients.phone,
-        date: quotes.date,
-        total: quotes.total,
-        status: quotes.status,
-      })
-      .from(quotes)
-      .leftJoin(clients, eq(quotes.clientId, clients.id))
-      .orderBy(desc(quotes.id));
-
-    return NextResponse.json(result);
-  } catch (error) {
-    console.error("Erro ao listar orçamentos:", error);
-    return NextResponse.json(
-      { error: "Erro ao buscar orçamentos." },
-      { status: 500 }
+    const page = Math.max(1, Number.parseInt(request.nextUrl.searchParams.get("page") || "1", 10) || 1);
+    const pageSize = Math.min(
+      50,
+      Math.max(5, Number.parseInt(request.nextUrl.searchParams.get("limit") || "10", 10) || 10),
     );
+    const search = (request.nextUrl.searchParams.get("search") || "").trim().slice(0, 100);
+    const searchFilter = search
+      ? or(like(clients.name, `%${search}%`), like(quotes.quoteNumber, `%${search}%`))
+      : undefined;
+    const status = normalizeQuoteStatus(request.nextUrl.searchParams.get("status"));
+    const statusFilter = status === "concluido"
+      ? inArray(quotes.status, ["concluido", "concluído"])
+      : status
+        ? eq(quotes.status, status)
+        : undefined;
+    const filters = and(searchFilter, statusFilter);
+    const database = getDb();
+
+    const [items, [countResult]] = await Promise.all([
+      database
+        .select({
+          id: quotes.id,
+          quoteNumber: quotes.quoteNumber,
+          clientName: clients.name,
+          clientPhone: clients.phone,
+          date: quotes.date,
+          total: quotes.total,
+          status: quotes.status,
+        })
+        .from(quotes)
+        .leftJoin(clients, eq(quotes.clientId, clients.id))
+        .where(filters)
+        .orderBy(desc(quotes.id))
+        .limit(pageSize)
+        .offset((page - 1) * pageSize),
+      database
+        .select({ total: sql<number>`count(*)` })
+        .from(quotes)
+        .leftJoin(clients, eq(quotes.clientId, clients.id))
+        .where(filters),
+    ]);
+    const total = Number(countResult?.total ?? 0);
+
+    return NextResponse.json({
+      items,
+      page,
+      pageSize,
+      total,
+      totalPages: Math.max(1, Math.ceil(total / pageSize)),
+    });
+  } catch (error) {
+    console.error("Erro ao listar orcamentos:", error);
+    return NextResponse.json({ error: "Erro ao buscar orcamentos." }, { status: 500 });
   }
 }
 
-// POST /api/quotes — Criar novo orçamento
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    const parsed = parseQuoteInput(await request.json());
+    if (!parsed.ok) {
+      return NextResponse.json(
+        { error: "Revise os dados do orcamento.", issues: parsed.issues },
+        { status: 422 },
+      );
+    }
 
-    // Inserir ou atualizar cliente
-    const existingClient = await db
-      .select()
-      .from(clients)
-      .where(eq(clients.name, body.client.name))
-      .limit(1);
-
-    let clientId: number;
-
-    if (existingClient.length > 0) {
-      // Atualizar dados do cliente existente
-      await db
-        .update(clients)
-        .set({
-          address: body.client.address,
-          phone: body.client.phone,
-        })
-        .where(eq(clients.name, body.client.name));
-      clientId = existingClient[0].id;
-    } else {
-      // Inserir novo cliente
-      const [newClient] = await db
-        .insert(clients)
+    const result = await getDb().transaction(async (transaction) => {
+      const data = parsed.data;
+      const clientId = await upsertClient(transaction, data.client);
+      const quoteNumber = await resolveQuoteNumber(transaction, data.quoteNumber);
+      const now = new Date().toISOString();
+      const [quote] = await transaction
+        .insert(quotes)
         .values({
-          name: body.client.name,
-          address: body.client.address,
-          phone: body.client.phone,
+          quoteNumber,
+          clientId,
+          date: data.date,
+          deliveryDate: data.deliveryDate,
+          validUntil: data.validUntil,
+          total: data.total,
+          status: data.status,
+          paymentConditions: data.paymentConditions || null,
+          discount: data.discount,
+          notes: data.notes || null,
+          createdAt: now,
+          updatedAt: now,
         })
-        .returning({ id: clients.id });
-      clientId = newClient.id;
-    }
-
-    // Inserir o orçamento
-    const now = new Date().toISOString();
-    const [newQuote] = await db
-      .insert(quotes)
-      .values({
-        quoteNumber: body.quote_number,
-        clientId,
-        date: body.date,
-        deliveryDate: body.delivery_date || null,
-        validUntil: body.valid_until || null,
-        total: parseFloat(body.total),
-        status: body.status || "rascunho",
-        paymentConditions: body.payment_conditions || null,
-        discount: body.discount ? parseFloat(body.discount) : null,
-        notes: body.notes || null,
-        createdAt: now,
-        updatedAt: now,
-      })
-      .returning({ id: quotes.id });
-
-    // Inserir os itens (um a um para obter IDs e vincular dimensões)
-    if (body.items && body.items.length > 0) {
-      for (const item of body.items) {
-        const [newItem] = await db
-          .insert(quoteItems)
-          .values({
-            quoteId: newQuote.id,
-            title: item.title,
-            imageUrl: item.image_url || null,
-            width: item.width ? parseFloat(item.width) : null,
-            height: item.height ? parseFloat(item.height) : null,
-            glass: item.glass || null,
-            aluminumColor: item.aluminum || null,
-            hardwareColor: item.hardware || null,
-            quantity: item.quantity ? parseInt(item.quantity) : 1,
-            unitPrice: item.unit_price ? parseFloat(item.unit_price) : null,
-            totalPrice: item.total_price ? parseFloat(item.total_price) : 0,
-          })
-          .returning({ id: quoteItems.id });
-
-        // Inserir dimensões do item (se existirem)
-        if (item.dimensions && item.dimensions.length > 0) {
-          const dimsToInsert = item.dimensions.map(
-            (dim: {
-              label?: string;
-              width?: string;
-              height?: string;
-              quantity?: string;
-              unit_price?: string;
-              total_price?: string;
-            }) => ({
-              quoteItemId: newItem.id,
-              label: dim.label || null,
-              width: dim.width ? parseFloat(dim.width) : null,
-              height: dim.height ? parseFloat(dim.height) : null,
-              quantity: dim.quantity ? parseInt(dim.quantity) : 1,
-              unitPrice: dim.unit_price ? parseFloat(dim.unit_price) : null,
-              totalPrice: dim.total_price ? parseFloat(dim.total_price) : 0,
-            })
-          );
-          await db.insert(quoteItemDimensions).values(dimsToInsert);
-        }
-      }
-    }
+        .returning({ id: quotes.id });
+      if (!quote) throw new Error("O orcamento nao foi criado.");
+      await insertQuoteItems(transaction, quote.id, data.items);
+      return { id: quote.id, quoteNumber };
+    });
 
     return NextResponse.json({
       success: true,
-      id: newQuote.id,
-      message: "Orçamento criado com sucesso!",
+      ...result,
+      message: "Orcamento criado com sucesso!",
     });
   } catch (error) {
-    console.error("Erro ao criar orçamento:", error);
-    return NextResponse.json(
-      { error: "Erro ao processar o orçamento." },
-      { status: 500 }
-    );
+    console.error("Erro ao criar orcamento:", error);
+    return NextResponse.json({ error: "Erro ao processar o orcamento." }, { status: 500 });
   }
 }

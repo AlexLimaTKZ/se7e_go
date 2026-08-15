@@ -1,130 +1,106 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { quotes } from "@/lib/db/schema";
-import { desc } from "drizzle-orm";
+import { desc, eq, gte, inArray, sql } from "drizzle-orm";
+import { getDb } from "@/lib/db";
+import { clients, quotes } from "@/lib/db/schema";
 
 export const dynamic = "force-dynamic";
 
+function monthKey(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
 export async function GET() {
   try {
-    // 1. Buscar todos os orçamentos com dados do cliente
-    // Para dashboards, as vezes é mais performático trazer os dados necessários e processar no Node
-    // do que fazer múltiplas queries complexas no SQLite via edge
-    const allQuotes = await db.query.quotes.findMany({
-      with: {
-        client: true,
-      },
-      orderBy: [desc(quotes.date)],
-    });
-
     const now = new Date();
-    const currentMonth = now.getMonth();
-    const currentYear = now.getFullYear();
+    const months = Array.from({ length: 6 }, (_, index) => {
+      const date = new Date(now.getFullYear(), now.getMonth() - (5 - index), 1);
+      return { key: monthKey(date), name: date.toLocaleDateString("pt-BR", { month: "short" }).replace(".", "") };
+    });
+    const previousMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const currentKey = monthKey(now);
+    const previousKey = monthKey(previousMonth);
+    const successfulStatuses = ["aprovado", "concluido", "concluído"];
+    const database = getDb();
 
-    // 2. Cálculo de Métricas
-    const monthlyRevenue = allQuotes
-      .filter((q: typeof quotes.$inferSelect) => {
-        const qDate = new Date(q.date || "");
-        return (
-          (q.status === "aprovado" || q.status === "concluido" || q.status === "concluído") &&
-          qDate.getMonth() === currentMonth &&
-          qDate.getFullYear() === currentYear
-        );
-      })
-      .reduce((sum: number, q: typeof quotes.$inferSelect) => sum + (q.total || 0), 0);
-
-    // Mês passado
-    const lastMonthDate = new Date();
-    lastMonthDate.setDate(1);
-    lastMonthDate.setMonth(lastMonthDate.getMonth() - 1);
-    const lastMonth = lastMonthDate.getMonth();
-    const lastMonthYear = lastMonthDate.getFullYear();
-
-    const lastMonthRevenue = allQuotes
-      .filter((q: typeof quotes.$inferSelect) => {
-        const qDate = new Date(q.date || "");
-        return (
-          (q.status === "aprovado" || q.status === "concluido" || q.status === "concluído") &&
-          qDate.getMonth() === lastMonth &&
-          qDate.getFullYear() === lastMonthYear
-        );
-      })
-      .reduce((sum: number, q: typeof quotes.$inferSelect) => sum + (q.total || 0), 0);
-
-    const revenueGrowth = lastMonthRevenue > 0 
-      ? ((monthlyRevenue - lastMonthRevenue) / lastMonthRevenue) * 100 
-      : (monthlyRevenue > 0 ? 100 : 0);
-
-    const pendingCount = allQuotes.filter(
-      (q: typeof quotes.$inferSelect) => q.status === "rascunho" || q.status === "enviado"
-    ).length;
-
-    const draftCount = allQuotes.filter((q: typeof quotes.$inferSelect) => q.status === "rascunho").length;
-    const sentCount = allQuotes.filter((q: typeof quotes.$inferSelect) => q.status === "enviado").length;
-    const approvedCount = allQuotes.filter((q: typeof quotes.$inferSelect) => q.status === "aprovado").length;
-    const rejectedCount = allQuotes.filter((q: typeof quotes.$inferSelect) => q.status === "recusado").length;
-    const completedCount = allQuotes.filter((q: typeof quotes.$inferSelect) => q.status === "concluido" || q.status === "concluído").length;
-    const totalCount = allQuotes.length;
-
-    const recentApproved = allQuotes
-      .filter((q: typeof quotes.$inferSelect) => q.status === "aprovado" || q.status === "concluido")
-      .slice(0, 3)
-      .map((q: any) => ({
-        id: q.id,
-        quoteNumber: q.quoteNumber,
-        clientName: q.client?.name || "Cliente não identificado",
-        total: q.total,
-        date: q.date,
-      }));
-
-    // 3. Dados do Gráfico (Últimos 6 meses)
-    const monthNames = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
-    const chartData = [];
-
-    for (let i = 5; i >= 0; i--) {
-      const d = new Date();
-      d.setDate(1); // Evitar pulo de mês em dias 31 para meses que vão até dia 30
-      d.setMonth(d.getMonth() - i);
-      const m = d.getMonth();
-      const y = d.getFullYear();
-
-      const revenue = allQuotes
-        .filter((q: typeof quotes.$inferSelect) => {
-          const qDate = new Date(q.date || "");
-          return (
-            (q.status === "aprovado" || q.status === "concluido") &&
-            qDate.getMonth() === m &&
-            qDate.getFullYear() === y
-          );
+    const [metricRows, recentApproved, revenueRows] = await Promise.all([
+      database
+        .select({
+          monthlyRevenue: sql<number>`coalesce(sum(case when ${quotes.status} in ('aprovado', 'concluido', 'concluído') and substr(${quotes.date}, 1, 7) = ${currentKey} then ${quotes.total} else 0 end), 0)`,
+          lastMonthRevenue: sql<number>`coalesce(sum(case when ${quotes.status} in ('aprovado', 'concluido', 'concluído') and substr(${quotes.date}, 1, 7) = ${previousKey} then ${quotes.total} else 0 end), 0)`,
+          pendingCount: sql<number>`sum(case when ${quotes.status} in ('rascunho', 'enviado') then 1 else 0 end)`,
+          draftCount: sql<number>`sum(case when ${quotes.status} = 'rascunho' then 1 else 0 end)`,
+          sentCount: sql<number>`sum(case when ${quotes.status} = 'enviado' then 1 else 0 end)`,
+          approvedCount: sql<number>`sum(case when ${quotes.status} = 'aprovado' then 1 else 0 end)`,
+          rejectedCount: sql<number>`sum(case when ${quotes.status} = 'recusado' then 1 else 0 end)`,
+          completedCount: sql<number>`sum(case when ${quotes.status} in ('concluido', 'concluído') then 1 else 0 end)`,
+          totalCount: sql<number>`count(*)`,
         })
-        .reduce((sum: number, q: typeof quotes.$inferSelect) => sum + (q.total || 0), 0);
+        .from(quotes),
+      database
+        .select({
+          id: quotes.id,
+          quoteNumber: quotes.quoteNumber,
+          clientName: clients.name,
+          total: quotes.total,
+          date: quotes.date,
+        })
+        .from(quotes)
+        .leftJoin(clients, eq(quotes.clientId, clients.id))
+        .where(inArray(quotes.status, successfulStatuses))
+        .orderBy(desc(quotes.date), desc(quotes.id))
+        .limit(3),
+      database
+        .select({
+          month: sql<string>`substr(${quotes.date}, 1, 7)`,
+          value: sql<number>`coalesce(sum(${quotes.total}), 0)`,
+        })
+        .from(quotes)
+        .where(
+          sql`${inArray(quotes.status, successfulStatuses)} and ${gte(quotes.date, `${months[0].key}-01`)}`,
+        )
+        .groupBy(sql`substr(${quotes.date}, 1, 7)`),
+    ]);
 
-      chartData.push({
-        name: monthNames[m],
-        value: revenue,
-      });
-    }
+    const metrics = metricRows[0];
+    const monthlyRevenue = Number(metrics?.monthlyRevenue ?? 0);
+    const lastMonthRevenue = Number(metrics?.lastMonthRevenue ?? 0);
+    const revenueGrowth =
+      lastMonthRevenue > 0
+        ? ((monthlyRevenue - lastMonthRevenue) / lastMonthRevenue) * 100
+        : 0;
+    const revenueByMonth = new Map(
+      revenueRows.map((row) => [row.month, Number(row.value ?? 0)]),
+    );
 
     return NextResponse.json({
       metrics: {
         monthlyRevenue,
+        lastMonthRevenue,
         revenueGrowth,
-        pendingCount,
-        draftCount,
-        sentCount,
-        approvedCount,
-        rejectedCount,
-        completedCount,
-        totalCount,
+        pendingCount: Number(metrics?.pendingCount ?? 0),
+        draftCount: Number(metrics?.draftCount ?? 0),
+        sentCount: Number(metrics?.sentCount ?? 0),
+        approvedCount: Number(metrics?.approvedCount ?? 0),
+        rejectedCount: Number(metrics?.rejectedCount ?? 0),
+        completedCount: Number(metrics?.completedCount ?? 0),
+        totalCount: Number(metrics?.totalCount ?? 0),
       },
-      recentApproved,
-      chartData,
+      recentApproved: recentApproved.map((quote) => ({
+        ...quote,
+        clientName: quote.clientName || "Cliente não identificado",
+      })),
+      chartData: months.map((month) => ({
+        name: month.name.charAt(0).toUpperCase() + month.name.slice(1),
+        value: revenueByMonth.get(month.key) || 0,
+      })),
+    }, {
+      headers: { "Cache-Control": "private, no-store" },
     });
   } catch (error) {
     console.error("Dashboard API Error:", error);
     return NextResponse.json(
       { error: "Erro ao carregar dados do dashboard" },
-      { status: 500 }
+      { status: 500, headers: { "Cache-Control": "private, no-store" } },
     );
   }
 }

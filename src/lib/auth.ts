@@ -1,29 +1,38 @@
-/**
- * Utilitários de autenticação.
- * Usa SHA-256 via Web Crypto API (compatível com Edge e Node).
- */
+import { createSessionToken, verifySessionToken } from "./security/auth-token";
 
-const AUTH_SALT = "se7e-orcamentos-2025";
+const encoder = new TextEncoder();
 
-/**
- * Gera um hash SHA-256 da senha + salt.
- * Usado para armazenar um token seguro no cookie ao invés da senha em texto puro.
- */
-export async function hashPassword(password: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(password + AUTH_SALT);
-  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+function getSessionSecret(): string | null {
+  return process.env.AUTH_SECRET || process.env.APP_PASSWORD || null;
 }
 
-/**
- * Verifica se o token do cookie é válido comparando com o hash da senha correta.
- */
-export async function verifyToken(token: string): Promise<boolean> {
-  const correctPassword = process.env.APP_PASSWORD;
-  if (!correctPassword || !token) return false;
+async function digest(value: string): Promise<Uint8Array> {
+  return new Uint8Array(await crypto.subtle.digest("SHA-256", encoder.encode(value)));
+}
 
-  const expectedHash = await hashPassword(correctPassword);
-  return token === expectedHash;
+export async function passwordMatches(candidate: string): Promise<boolean> {
+  const expected = process.env.APP_PASSWORD;
+  if (!expected || !candidate) return false;
+
+  const [candidateDigest, expectedDigest] = await Promise.all([
+    digest(candidate),
+    digest(expected),
+  ]);
+  let difference = 0;
+  for (let index = 0; index < expectedDigest.length; index += 1) {
+    difference |= candidateDigest[index] ^ expectedDigest[index];
+  }
+  return difference === 0;
+}
+
+export async function createAuthToken(): Promise<string> {
+  const secret = getSessionSecret();
+  if (!secret) throw new Error("APP_PASSWORD ou AUTH_SECRET nao foi configurado.");
+  return createSessionToken(secret);
+}
+
+export async function verifyToken(token: string): Promise<boolean> {
+  const secret = getSessionSecret();
+  if (!secret) return false;
+  return verifySessionToken(token, secret);
 }

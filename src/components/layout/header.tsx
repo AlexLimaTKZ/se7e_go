@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { LayoutDashboard, LayoutList, LogOut, Plus } from "lucide-react";
+import { LayoutDashboard, LayoutList, LogOut } from "lucide-react";
 
 export function Header() {
   const pathname = usePathname();
@@ -33,10 +34,13 @@ export function Header() {
     <header className="sticky top-0 z-50 border-b border-border/60 bg-background/80 backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-5xl items-center justify-between px-4">
         {/* Logo */}
-        <Link href="/" className="flex items-center gap-2 group">
-          <img
+        <Link href="/" className="group flex min-h-11 items-center gap-2 rounded-lg outline-none focus-visible:ring-3 focus-visible:ring-ring/50" aria-label="SE7E — ir para o dashboard">
+          <Image
             src="/se7e-logo-v2.png"
             alt="Logo SE7E Alumínio & Vidros"
+            width={32}
+            height={32}
+            loading="eager"
             className="h-8 w-8 rounded-full object-cover transition-transform group-hover:scale-110"
           />
           <span className="text-lg font-bold tracking-tighter text-foreground uppercase">
@@ -45,25 +49,26 @@ export function Header() {
         </Link>
 
         {/* Navigation */}
-        <nav className="flex items-center gap-1">
+        <nav className="flex items-center gap-1" aria-label="Navegação principal">
           {navItems.map((item) => {
             const isActive =
               item.href === "/"
                 ? pathname === "/"
                 : pathname.startsWith(item.href);
             return (
-              <Link key={item.href} href={item.href}>
-                <Button
-                  variant={isActive ? "secondary" : "ghost"}
-                  size="sm"
-                  className={cn(
-                    "gap-2 text-sm",
-                    isActive && "bg-primary/10 text-primary"
-                  )}
-                >
-                  <item.icon className="h-4 w-4" />
-                  <span className="hidden sm:inline">{item.label}</span>
-                </Button>
+              <Link
+                key={item.href}
+                href={item.href}
+                aria-label={item.label}
+                aria-current={isActive ? "page" : undefined}
+                className={cn(
+                  buttonVariants({ variant: isActive ? "secondary" : "ghost", size: "sm" }),
+                  "h-11 min-w-11 gap-2 px-3 text-sm",
+                  isActive && "bg-primary/10 text-primary",
+                )}
+              >
+                <item.icon className="size-4" aria-hidden="true" />
+                <span className="hidden sm:inline">{item.label}</span>
               </Link>
             );
           })}
@@ -76,7 +81,8 @@ export function Header() {
             variant="ghost"
             size="icon"
             onClick={handleLogout}
-            className="text-muted-foreground hover:text-destructive"
+            className="size-11 text-muted-foreground hover:text-destructive"
+            aria-label="Sair"
             title="Sair"
           >
             <LogOut className="h-5 w-5" />
