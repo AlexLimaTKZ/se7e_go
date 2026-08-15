@@ -14,6 +14,9 @@ import { formatCurrencyValue, formatDate } from "@/lib/formatters";
 import type { ParsedQuoteInput } from "@/lib/quotes/quote-input";
 import { fetchOptimizedPdfImage, type PdfImageSource } from "./pdf-image";
 
+const BRAND_BLUE = "#1F5B85";
+const MUTED_TEXT = "#667085";
+
 const styles = StyleSheet.create({
   page: {
     paddingTop: 28,
@@ -28,27 +31,63 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     borderBottomWidth: 1.5,
-    borderBottomColor: "#111111",
-    paddingBottom: 10,
-    marginBottom: 12,
+    borderBottomColor: BRAND_BLUE,
+    paddingBottom: 11,
+    marginBottom: 13,
   },
-  company: { width: "68%" },
-  companyName: { fontSize: 17, fontFamily: "Helvetica-Bold", marginBottom: 2 },
-  systemName: { fontSize: 7, color: "#555555", marginBottom: 7 },
-  companyLine: { marginBottom: 2, color: "#444444" },
-  quoteIdentity: { width: "30%", alignItems: "flex-end" },
-  logo: { width: 58, height: 58, objectFit: "contain", marginBottom: 5 },
+  company: { width: "66%" },
+  companyName: {
+    fontSize: 17,
+    fontFamily: "Helvetica-Bold",
+    marginBottom: 5,
+    letterSpacing: 0.1,
+  },
+  systemName: {
+    fontSize: 6.3,
+    color: MUTED_TEXT,
+    marginBottom: 9,
+    letterSpacing: 0.9,
+  },
+  companyLine: { marginBottom: 2, color: "#475467" },
+  quoteIdentity: { width: "32%", alignItems: "flex-end" },
+  logo: { width: 70, height: 62, objectFit: "contain", marginBottom: 5 },
   quoteTitle: { fontSize: 12, fontFamily: "Helvetica-Bold", textAlign: "right" },
-  quoteDate: { fontSize: 9, marginTop: 3 },
-  clientBox: { borderWidth: 0.8, borderColor: "#222222", padding: 8, marginBottom: 13 },
-  clientName: { fontFamily: "Helvetica-Bold", marginBottom: 3, textTransform: "uppercase" },
-  sectionTitle: { fontSize: 12, fontFamily: "Helvetica-Bold", marginBottom: 9 },
-  item: { borderBottomWidth: 0.6, borderBottomColor: "#cccccc", paddingBottom: 10, marginBottom: 12 },
+  quoteDate: { fontSize: 8.5, marginTop: 3, color: MUTED_TEXT },
+  clientBox: {
+    borderWidth: 0.7,
+    borderColor: "#98A2B3",
+    backgroundColor: "#FBFCFD",
+    paddingVertical: 7,
+    paddingHorizontal: 8,
+    marginBottom: 13,
+  },
+  clientLabel: {
+    fontSize: 6.2,
+    color: MUTED_TEXT,
+    letterSpacing: 0.8,
+    marginBottom: 3,
+  },
+  clientName: { fontFamily: "Helvetica-Bold", marginBottom: 2, textTransform: "uppercase" },
+  clientLine: { marginBottom: 1.5 },
+  sectionTitle: {
+    fontSize: 12,
+    fontFamily: "Helvetica-Bold",
+    color: BRAND_BLUE,
+    marginBottom: 9,
+  },
+  item: { borderBottomWidth: 0.6, borderBottomColor: "#D0D5DD", paddingBottom: 11, marginBottom: 12 },
   itemLayout: { flexDirection: "row", alignItems: "flex-start", gap: 14 },
   itemMain: { flexGrow: 1, flexShrink: 1, flexBasis: 0 },
-  itemTitle: { fontSize: 9.5, fontFamily: "Helvetica-Bold", marginBottom: 6, textTransform: "uppercase" },
-  itemBody: { flexDirection: "row", gap: 10 },
-  itemImage: { width: 72, height: 72, objectFit: "contain", borderWidth: 0.5, borderColor: "#dddddd" },
+  itemTitle: { fontSize: 9.5, fontFamily: "Helvetica-Bold", marginBottom: 7, textTransform: "uppercase" },
+  itemBody: { flexDirection: "row", gap: 11 },
+  itemImage: {
+    width: 80,
+    height: 80,
+    objectFit: "contain",
+    padding: 1,
+    borderWidth: 0.45,
+    borderColor: "#E4E7EC",
+  },
   itemDetails: { flexGrow: 1, flexShrink: 1, flexBasis: 0 },
   detailLine: { marginBottom: 2 },
   dimensionRow: { marginBottom: 2 },
@@ -56,16 +95,17 @@ const styles = StyleSheet.create({
   itemPrices: { width: 190, flexShrink: 0, alignItems: "flex-end" },
   priceLine: { width: "100%", marginBottom: 2, textAlign: "right" },
   itemTotal: { width: "100%", marginTop: 2, fontFamily: "Helvetica-Bold", textAlign: "right" },
-  summary: { borderTopWidth: 1.5, borderTopColor: "#111111", paddingTop: 10, marginTop: 5 },
+  summary: { borderTopWidth: 1.5, borderTopColor: "#111111", paddingTop: 11, marginTop: 9 },
   summaryRow: { flexDirection: "row", justifyContent: "space-between", gap: 20 },
   conditions: { flexGrow: 1, flexShrink: 1 },
   condition: { marginBottom: 3 },
+  conditionLabel: { fontFamily: "Helvetica-Bold" },
   totals: { minWidth: 170, alignItems: "flex-end" },
   discount: { color: "#b42318", marginBottom: 5 },
   grandTotal: { borderWidth: 1.5, borderColor: "#111111", paddingVertical: 8, paddingHorizontal: 10, fontSize: 12, fontFamily: "Helvetica-Bold" },
-  notes: { marginTop: 11, padding: 8, backgroundColor: "#f6f6f6", borderWidth: 0.5, borderColor: "#cccccc" },
+  notes: { marginTop: 11, padding: 8, backgroundColor: "#F8F9FB", borderWidth: 0.5, borderColor: "#D0D5DD" },
   notesTitle: { fontFamily: "Helvetica-Bold", marginBottom: 3 },
-  signatures: { flexDirection: "row", gap: 34, marginTop: 35 },
+  signatures: { flexDirection: "row", gap: 34, marginTop: 44 },
   signatureBlock: { flexGrow: 1, flexBasis: 0, borderTopWidth: 0.7, borderTopColor: "#111111" },
   signatureName: { width: "100%", paddingTop: 4, textAlign: "center", fontFamily: "Helvetica-Bold", textTransform: "uppercase" },
   footer: { position: "absolute", bottom: 18, left: 34, right: 34, textAlign: "center", color: "#777777", fontSize: 7 },
@@ -77,6 +117,30 @@ function money(value: number): string {
 
 function measurement(value: number | null): string {
   return value === null ? "—" : String(value).replace(".", ",");
+}
+
+function measurementWithUnit(value: number | null): string {
+  return value === null ? "—" : `${measurement(value)} mm`;
+}
+
+function dimensionMeasurement(width: number | null, height: number | null): string {
+  if (width === null && height === null) return "—";
+  return `${measurement(width)} x ${measurement(height)} mm`;
+}
+
+function formatPhone(value: string): string {
+  const digits = value.replace(/\D/g, "");
+  const normalized = digits.length > 11 && digits.startsWith("55") ? digits.slice(2) : digits;
+
+  if (normalized.length === 11) {
+    return `(${normalized.slice(0, 2)}) ${normalized.slice(2, 7)}-${normalized.slice(7)}`;
+  }
+
+  if (normalized.length === 10) {
+    return `(${normalized.slice(0, 2)}) ${normalized.slice(2, 6)}-${normalized.slice(6)}`;
+  }
+
+  return value;
 }
 
 function dimensionPriceLabel(label: string, index: number): string {
@@ -125,15 +189,16 @@ function QuotePdfDocument({ quote, logo, itemImages }: QuotePdfDocumentProps) {
           </View>
           <View style={styles.quoteIdentity}>
             <PdfImage src={logo} style={styles.logo} />
-            <Text style={styles.quoteTitle}>ORÇAMENTO {quote.quoteNumber}</Text>
-            <Text style={styles.quoteDate}>{formatDate(quote.date)}</Text>
+            <Text style={styles.quoteTitle}>ORÇAMENTO Nº {quote.quoteNumber}</Text>
+            <Text style={styles.quoteDate}>DATA: {formatDate(quote.date)}</Text>
           </View>
         </View>
 
         <View style={styles.clientBox}>
+          <Text style={styles.clientLabel}>CLIENTE</Text>
           <Text style={styles.clientName}>{quote.client.name}</Text>
-          {quote.client.address ? <Text>ENDEREÇO: {quote.client.address}</Text> : null}
-          {quote.client.phone ? <Text>CELULAR: {quote.client.phone}</Text> : null}
+          {quote.client.address ? <Text style={styles.clientLine}>ENDEREÇO: {quote.client.address}</Text> : null}
+          {quote.client.phone ? <Text style={styles.clientLine}>CELULAR: {formatPhone(quote.client.phone)}</Text> : null}
         </View>
 
         <Text style={styles.sectionTitle}>PRODUTOS</Text>
@@ -149,7 +214,7 @@ function QuotePdfDocument({ quote, logo, itemImages }: QuotePdfDocumentProps) {
                       item.dimensions.map((dimension, dimensionIndex) => (
                         <View key={`${dimensionIndex}-${dimension.label}`} style={styles.dimensionRow}>
                           <Text style={styles.dimensionLabel}>
-                            • {measurement(dimension.width)} x {measurement(dimension.height)}
+                            • {dimensionMeasurement(dimension.width, dimension.height)}
                             {dimension.label ? ` — ${dimension.label}` : ""}
                             {dimension.quantity > 1 ? ` (×${dimension.quantity})` : ""}
                           </Text>
@@ -157,7 +222,9 @@ function QuotePdfDocument({ quote, logo, itemImages }: QuotePdfDocumentProps) {
                       ))
                     ) : (
                       <>
-                        <Text style={styles.detailLine}>LARGURA: {measurement(item.width)}  ALTURA: {measurement(item.height)}</Text>
+                        <Text style={styles.detailLine}>
+                          LARGURA: {measurementWithUnit(item.width)}  ALTURA: {measurementWithUnit(item.height)}
+                        </Text>
                         {item.glass ? <Text style={styles.detailLine}>COR DO VIDRO: {item.glass}</Text> : null}
                         {item.aluminumColor ? <Text style={styles.detailLine}>COR DOS ALUMÍNIOS: {item.aluminumColor}</Text> : null}
                         {item.hardwareColor ? <Text style={styles.detailLine}>COR DAS FERRAGENS: {item.hardwareColor}</Text> : null}
@@ -187,9 +254,21 @@ function QuotePdfDocument({ quote, logo, itemImages }: QuotePdfDocumentProps) {
         <View style={styles.summary} wrap={false}>
           <View style={styles.summaryRow}>
             <View style={styles.conditions}>
-              {quote.deliveryDate ? <Text style={styles.condition}>PREVISÃO DE ENTREGA: {formatDate(quote.deliveryDate)}</Text> : null}
-              {quote.validUntil ? <Text style={styles.condition}>ORÇAMENTO VÁLIDO ATÉ: {formatDate(quote.validUntil)}</Text> : null}
-              {quote.paymentConditions ? <Text style={styles.condition}>CONDIÇÕES DE PAGAMENTO: {quote.paymentConditions}</Text> : null}
+              {quote.deliveryDate ? (
+                <Text style={styles.condition}>
+                  <Text style={styles.conditionLabel}>PREVISÃO DE ENTREGA:</Text> {formatDate(quote.deliveryDate)}
+                </Text>
+              ) : null}
+              {quote.validUntil ? (
+                <Text style={styles.condition}>
+                  <Text style={styles.conditionLabel}>ORÇAMENTO VÁLIDO ATÉ:</Text> {formatDate(quote.validUntil)}
+                </Text>
+              ) : null}
+              {quote.paymentConditions ? (
+                <Text style={styles.condition}>
+                  <Text style={styles.conditionLabel}>CONDIÇÕES DE PAGAMENTO:</Text> {quote.paymentConditions}
+                </Text>
+              ) : null}
             </View>
             <View style={styles.totals}>
               {quote.discount > 0 ? <Text style={styles.discount}>DESCONTO: - {money(quote.discount)}</Text> : null}
