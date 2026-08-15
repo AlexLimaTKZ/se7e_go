@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { MotionConfig, motion } from "framer-motion";
@@ -54,10 +54,6 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
   const [loading, setLoading] = useState(false);
   const [passwordVisible, setPasswordVisible] = useState(false);
 
-  useEffect(() => {
-    router.prefetch(redirectTo);
-  }, [redirectTo, router]);
-
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
@@ -71,8 +67,10 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
       });
 
       if (response.ok) {
+        // Do not prefetch protected routes before authentication. A prefetch made
+        // without the auth cookie can cache the /login redirect and immediately
+        // send a successfully authenticated user back to this page.
         router.replace(redirectTo);
-        router.refresh();
         return;
       }
 
@@ -284,7 +282,7 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
               data-ambient-tagline
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.65, delay: 0.58, ease: [0.16, 1, 0.3, 1] }}
+              transition={{ duration: 0.65, delay: 0.58, ease: "easeOut" }}
               className="absolute bottom-[20%] w-full max-w-lg text-center text-xs font-medium uppercase leading-relaxed tracking-[0.5em] text-white/55 drop-shadow-md"
             >
               Elevando o padrão em alumínio e vidros com design e precisão.
