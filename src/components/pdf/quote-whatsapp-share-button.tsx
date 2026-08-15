@@ -3,7 +3,7 @@
 import { MessageCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { normalizeBrazilianWhatsAppPhone } from "@/lib/pdf/share";
+import { isMobileDevice, normalizeBrazilianWhatsAppPhone } from "@/lib/pdf/share";
 
 interface QuoteWhatsAppShareButtonProps {
   quoteId: number;
@@ -17,6 +17,7 @@ export function QuoteWhatsAppShareButton({
   clientPhone,
 }: QuoteWhatsAppShareButtonProps) {
   const hasValidPhone = Boolean(normalizeBrazilianWhatsAppPhone(clientPhone));
+  const shareHref = `/api/quotes/${quoteId}/whatsapp`;
 
   if (!hasValidPhone) {
     return (
@@ -34,10 +35,22 @@ export function QuoteWhatsAppShareButton({
 
   return (
     <a
-      href={`/api/quotes/${quoteId}/whatsapp`}
+      href={shareHref}
       className={buttonVariants({ variant: "ghost", size: "icon" })}
       aria-label="Compartilhar orçamento no WhatsApp"
       title="WhatsApp + link do PDF"
+      onClick={(event) => {
+        const mobile = isMobileDevice({
+          userAgent: navigator.userAgent,
+          platform: navigator.platform,
+          maxTouchPoints: navigator.maxTouchPoints,
+        });
+
+        if (mobile) return;
+
+        event.preventDefault();
+        window.open(shareHref, "_blank", "noopener,noreferrer");
+      }}
     >
       <MessageCircle className="size-4" />
     </a>
