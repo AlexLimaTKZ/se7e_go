@@ -75,7 +75,7 @@ describe("QuoteWhatsAppShareButton", () => {
   it("shares PDF and message together on Android", async () => {
     stubQuoteFetches();
     setNavigatorPlatform("Mozilla/5.0 (Linux; Android 15)", "Linux armv8l");
-    const share = vi.fn(async () => undefined);
+    const share = vi.fn(async (_data: ShareData) => undefined);
     Object.defineProperty(navigator, "share", { configurable: true, value: share });
     Object.defineProperty(navigator, "canShare", { configurable: true, value: vi.fn(() => true) });
 
@@ -83,7 +83,7 @@ describe("QuoteWhatsAppShareButton", () => {
     fireEvent.click(screen.getByRole("button", { name: "Compartilhar orçamento no WhatsApp" }));
 
     await waitFor(() => expect(share).toHaveBeenCalledOnce());
-    const payload = share.mock.calls[0][0] as ShareData;
+    const payload = share.mock.calls[0][0];
     expect(payload.text).toContain("orçamento #5044");
     expect(payload.files).toHaveLength(1);
     expect(payload.files?.[0].name).toBe("Orcamento-5044-Dr-Magico-de-Oz.pdf");
@@ -92,8 +92,8 @@ describe("QuoteWhatsAppShareButton", () => {
   it("shares only the PDF on iPhone and copies the message", async () => {
     stubQuoteFetches();
     setNavigatorPlatform("Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)", "iPhone");
-    const share = vi.fn(async () => undefined);
-    const writeText = vi.fn(async () => undefined);
+    const share = vi.fn(async (_data: ShareData) => undefined);
+    const writeText = vi.fn(async (_text: string) => undefined);
     Object.defineProperty(navigator, "share", { configurable: true, value: share });
     Object.defineProperty(navigator, "canShare", { configurable: true, value: vi.fn(() => true) });
     Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
@@ -102,7 +102,7 @@ describe("QuoteWhatsAppShareButton", () => {
     fireEvent.click(screen.getByRole("button", { name: "Compartilhar orçamento no WhatsApp" }));
 
     await waitFor(() => expect(share).toHaveBeenCalledOnce());
-    const payload = share.mock.calls[0][0] as ShareData;
+    const payload = share.mock.calls[0][0];
     expect(payload.files).toHaveLength(1);
     expect(payload.text).toBeUndefined();
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining("orçamento #5044"));
@@ -111,7 +111,7 @@ describe("QuoteWhatsAppShareButton", () => {
   it("downloads the PDF and opens WhatsApp when native file sharing is unavailable", async () => {
     stubQuoteFetches();
     setNavigatorPlatform("Mozilla/5.0 (Windows NT 10.0; Win64; x64)", "Win32");
-    Object.defineProperty(navigator, "share", { configurable: true, value: vi.fn(async () => undefined) });
+    Object.defineProperty(navigator, "share", { configurable: true, value: vi.fn(async (_data: ShareData) => undefined) });
     Object.defineProperty(navigator, "canShare", { configurable: true, value: vi.fn(() => false) });
 
     const createObjectURL = vi.fn(() => "blob:test");
