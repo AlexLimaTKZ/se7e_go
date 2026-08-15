@@ -1,0 +1,219 @@
+.mobileAmbient {
+  z-index: 0;
+  isolation: isolate;
+  pointer-events: none;
+}
+
+.mobileGrid {
+  position: absolute;
+  inset: -12%;
+  opacity: 0;
+  transform: translate3d(-12px, -12px, 0);
+  background-image:
+    linear-gradient(to right, rgb(100 170 230 / 0.42) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(255 255 255 / 0.2) 1px, transparent 1px);
+  background-size: 72px 72px;
+  mask-image: linear-gradient(to bottom, #000 0%, #000 38%, rgb(0 0 0 / 0.55) 62%, transparent 86%);
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    #000 0%,
+    #000 38%,
+    rgb(0 0 0 / 0.55) 62%,
+    transparent 86%
+  );
+  will-change: transform, opacity;
+}
+
+.mobileGlow {
+  position: absolute;
+  inset: 4% -65% 46%;
+  opacity: 0;
+  transform: translate3d(-38%, 0, 0) skewX(-10deg);
+  background: linear-gradient(
+    104deg,
+    transparent 38%,
+    rgb(48 116 182 / 0.035) 44%,
+    rgb(91 169 232 / 0.24) 50%,
+    rgb(48 116 182 / 0.045) 56%,
+    transparent 62%
+  );
+  mix-blend-mode: screen;
+  will-change: transform, opacity;
+}
+
+.beam {
+  position: absolute;
+  inset: -35% -45%;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate3d(-42%, 0, 0) skewX(-12deg);
+  transform-origin: center;
+  background: linear-gradient(
+    105deg,
+    transparent 36%,
+    rgb(33 94 154 / 0.025) 43%,
+    rgb(69 139 206 / 0.2) 50%,
+    rgb(33 94 154 / 0.04) 57%,
+    transparent 64%
+  );
+  mix-blend-mode: screen;
+  will-change: transform, opacity;
+}
+
+.beam::after {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 50%;
+  width: 1px;
+  background: linear-gradient(to bottom, transparent 18%, rgb(125 190 255 / 0.35), transparent 82%);
+  box-shadow: 0 0 28px rgb(69 139 206 / 0.28);
+}
+
+.brand {
+  -webkit-text-stroke: 1px rgb(255 255 255 / 0.18);
+  text-shadow: 0 0 48px rgb(69 139 206 / 0.09);
+}
+
+.securityPulse {
+  position: relative;
+  display: inline-flex;
+  width: 1rem;
+  height: 1rem;
+  align-items: center;
+  justify-content: center;
+}
+
+.securityPulse::before {
+  content: "";
+  position: absolute;
+  inset: -0.45rem;
+  border: 1px solid rgb(52 211 153 / 0.32);
+  border-radius: 999px;
+  opacity: 0.35;
+  transform: scale(0.72);
+  will-change: transform, opacity;
+}
+
+@keyframes ambient-sweep {
+  0% {
+    opacity: 0.24;
+    transform: translate3d(-42%, 0, 0) skewX(-12deg);
+  }
+
+  2% {
+    opacity: 0.68;
+  }
+
+  25% {
+    opacity: 0.46;
+    transform: translate3d(42%, 0, 0) skewX(-12deg);
+  }
+
+  28%,
+  100% {
+    opacity: 0;
+    transform: translate3d(42%, 0, 0) skewX(-12deg);
+  }
+}
+
+@keyframes mobile-grid-reveal {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 0.12;
+  }
+}
+
+@keyframes mobile-grid-drift {
+  from {
+    transform: translate3d(-12px, -12px, 0);
+  }
+
+  to {
+    transform: translate3d(12px, 12px, 0);
+  }
+}
+
+@keyframes mobile-glow-sweep {
+  0% {
+    opacity: 0.18;
+    transform: translate3d(-38%, 0, 0) skewX(-10deg);
+  }
+
+  2% {
+    opacity: 0.48;
+  }
+
+  15% {
+    opacity: 0.14;
+    transform: translate3d(38%, 0, 0) skewX(-10deg);
+  }
+
+  18%,
+  100% {
+    opacity: 0;
+    transform: translate3d(38%, 0, 0) skewX(-10deg);
+  }
+}
+
+@keyframes security-breathe {
+  0%,
+  100% {
+    opacity: 0.2;
+    transform: scale(0.72);
+  }
+
+  50% {
+    opacity: 0.65;
+    transform: scale(1.18);
+  }
+}
+
+@media (max-width: 1023px) and (prefers-reduced-motion: no-preference) {
+  .mobileGrid {
+    animation:
+      mobile-grid-reveal 250ms ease-out 0s both,
+      mobile-grid-drift 16s linear 0s infinite alternate;
+  }
+
+  .mobileGlow {
+    animation: mobile-glow-sweep 12s cubic-bezier(0.45, 0, 0.2, 1) 0s infinite;
+  }
+}
+
+@media (min-width: 1024px) and (prefers-reduced-motion: no-preference) {
+  .beam {
+    animation: ambient-sweep 16s cubic-bezier(0.45, 0, 0.2, 1) 0s infinite;
+  }
+
+  .securityPulse::before {
+    animation: security-breathe 3.6s ease-in-out 1.4s infinite;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mobileGrid {
+    animation: none;
+    opacity: 0.1;
+    transform: none;
+  }
+
+  .mobileGlow {
+    animation: none;
+    opacity: 0;
+  }
+
+  .beam {
+    animation: none;
+    opacity: 0;
+  }
+
+  .securityPulse::before {
+    animation: none;
+    opacity: 0.35;
+    transform: scale(1);
+  }
+}

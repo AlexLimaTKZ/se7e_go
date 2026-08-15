@@ -22,6 +22,34 @@ afterEach(() => {
 });
 
 describe("LoginForm", () => {
+  it("provides a decorative technical grid for mobile without covering interactions", () => {
+    const { container } = render(<LoginForm redirectTo="/" />);
+
+    const ambient = container.querySelector<HTMLElement>("[data-mobile-login-ambient]");
+    expect(ambient).toBeTruthy();
+    expect(ambient?.getAttribute("aria-hidden")).toBe("true");
+    expect(ambient?.className).toContain("pointer-events-none");
+    expect(ambient?.className).toContain("lg:hidden");
+    expect(ambient?.querySelector("[data-mobile-grid]")).toBeTruthy();
+    expect(ambient?.querySelector("[data-mobile-grid-glow]")).toBeTruthy();
+  });
+
+  it("provides a decorative ambient scene only in the desktop panel", () => {
+    const { container } = render(<LoginForm redirectTo="/" />);
+
+    const panel = container.querySelector<HTMLElement>("[data-login-ambient]");
+    expect(panel).toBeTruthy();
+    expect(panel?.getAttribute("aria-hidden")).toBe("true");
+    expect(panel?.className).toContain("hidden");
+    expect(panel?.className).toContain("lg:flex");
+    expect(panel?.querySelector("[data-ambient-beam]")).toBeTruthy();
+    const brand = panel?.querySelector<HTMLElement>("[data-ambient-brand]");
+    expect(brand).toBeTruthy();
+    expect(brand?.style.webkitTextStroke).toBe("");
+    expect(panel?.querySelector("[data-ambient-tagline]")).toBeTruthy();
+    expect(panel?.querySelector("[data-ambient-security-pulse]")).toBeTruthy();
+  });
+
   it("uses mobile-friendly password semantics without opening the keyboard", () => {
     render(<LoginForm redirectTo="/" />);
 

@@ -13,6 +13,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { MAX_LOGIN_PASSWORD_LENGTH } from "@/lib/security/login-input";
+import styles from "./login-ambient.module.css";
 
 const containerVariants = {
   hidden: {},
@@ -107,6 +108,15 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
           aria-labelledby="login-title"
           className="relative z-10 flex w-full flex-col justify-center border-white/5 bg-black/70 pb-[max(3rem,env(safe-area-inset-bottom))] pl-[max(1.5rem,env(safe-area-inset-left))] pr-[max(1.5rem,env(safe-area-inset-right))] pt-[max(3rem,env(safe-area-inset-top))] shadow-[20px_0_100px_rgba(0,0,0,0.5)] lg:w-[45%] lg:border-r lg:bg-black/40 lg:px-16 lg:py-12 lg:backdrop-blur-2xl xl:w-[40%]"
         >
+          <div
+            data-mobile-login-ambient
+            aria-hidden="true"
+            className={`pointer-events-none absolute inset-0 overflow-hidden lg:hidden ${styles.mobileAmbient}`}
+          >
+            <div data-mobile-grid className={styles.mobileGrid} />
+            <div data-mobile-grid-glow className={styles.mobileGlow} />
+          </div>
+
           <div
             aria-hidden="true"
             className="pointer-events-none absolute left-1/2 top-1/2 h-[min(28rem,90vw)] w-[min(28rem,90vw)] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/10 opacity-40 blur-[80px] sm:blur-[110px]"
@@ -242,6 +252,7 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
         </section>
 
         <aside
+          data-login-ambient
           aria-hidden="true"
           className="relative hidden w-full flex-col items-center justify-center overflow-hidden bg-[#020202] lg:flex lg:w-[55%] xl:w-[60%]"
         >
@@ -252,6 +263,7 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
           </div>
 
           <div className="absolute inset-0 z-0 bg-[linear-gradient(to_right,#ffffff_1px,transparent_1px),linear-gradient(to_bottom,#ffffff_1px,transparent_1px)] bg-[size:100px_100px] opacity-10 [mask-image:radial-gradient(ellipse_80%_80%_at_50%_50%,#000_20%,transparent_100%)]" />
+          <div data-ambient-beam className={styles.beam} />
 
           <motion.div
             initial={{ opacity: 0, scale: 0.97 }}
@@ -259,24 +271,45 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
             transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
             className="relative z-10 flex w-full select-none flex-col items-center justify-center px-12"
           >
-            <h2
-              className="text-[15vw] font-bold leading-none tracking-tighter text-transparent"
-              style={{ WebkitTextStroke: "1px rgba(255,255,255,0.1)" }}
+            <motion.h2
+              data-ambient-brand
+              initial={{ opacity: 0, y: 12, scale: 0.985 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ duration: 0.85, delay: 0.18, ease: [0.16, 1, 0.3, 1] }}
+              className={`${styles.brand} text-[15vw] font-bold leading-none tracking-tighter text-transparent`}
             >
               SE7E
-            </h2>
-            <p className="absolute bottom-[20%] w-full max-w-lg text-center text-xs font-medium uppercase leading-relaxed tracking-[0.5em] text-white/55 drop-shadow-md">
+            </motion.h2>
+            <motion.p
+              data-ambient-tagline
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.65, delay: 0.58, ease: [0.16, 1, 0.3, 1] }}
+              className="absolute bottom-[20%] w-full max-w-lg text-center text-xs font-medium uppercase leading-relaxed tracking-[0.5em] text-white/55 drop-shadow-md"
+            >
               Elevando o padrão em alumínio e vidros com design e precisão.
-            </p>
+            </motion.p>
           </motion.div>
 
-          <p className="absolute right-12 top-8 z-10 font-mono text-xs uppercase tracking-[0.2em] text-white/50">
+          <motion.p
+            initial={{ opacity: 0, x: 8 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.5, delay: 0.75, ease: "easeOut" }}
+            className="absolute right-12 top-8 z-10 font-mono text-xs uppercase tracking-[0.2em] text-white/50"
+          >
             SYS.VER.2.0
-          </p>
-          <p className="absolute bottom-8 right-12 z-10 flex items-center gap-2 font-mono text-xs uppercase tracking-[0.2em] text-white/55">
-            <ShieldCheck aria-hidden="true" className="h-4 w-4 text-emerald-400/80" />
+          </motion.p>
+          <motion.p
+            initial={{ opacity: 0, x: 8 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.5, delay: 0.9, ease: "easeOut" }}
+            className="absolute bottom-8 right-12 z-10 flex items-center gap-2 font-mono text-xs uppercase tracking-[0.2em] text-white/55"
+          >
+            <span data-ambient-security-pulse className={styles.securityPulse}>
+              <ShieldCheck aria-hidden="true" className="relative z-10 h-4 w-4 text-emerald-400/80" />
+            </span>
             Acesso seguro
-          </p>
+          </motion.p>
         </aside>
       </main>
     </MotionConfig>

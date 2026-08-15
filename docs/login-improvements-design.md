@@ -50,3 +50,85 @@
 - Testes da rota para JSON inválido, tipo incorreto, limite de senha e limite de corpo.
 - Testes de projeto (`test`, `lint`, TypeScript e `build`).
 - Inspeção responsiva em iPhone compacto, iPhone moderno, tablet e desktop, incluindo ausência de overflow horizontal.
+
+## Complemento: cena animada no desktop
+
+### Entendimento confirmado
+
+- A área institucional à direita deve ganhar vida em telas desktop sem competir com o formulário.
+- O painel móvel não reutiliza esta cena; sua animação possui especificação própria e mais leve.
+- O movimento deve reforçar a estética industrial técnica da grade, da marca SE7E e do selo de segurança.
+- A experiência precisa continuar estática e legível quando `prefers-reduced-motion` estiver ativo.
+- Não serão usados canvas, WebGL, partículas, eventos do ponteiro ou dependências adicionais.
+
+### Alternativas consideradas
+
+1. **Camadas CSS e entrada com Framer Motion — escolhida.** Um feixe azul lento cruza a grade; a marca e a frase entram uma vez; o selo recebe um pulso discreto. Usa apenas `transform` e `opacity` e aproveita a configuração de movimento reduzido existente.
+2. **Parallax ligado ao ponteiro.** É mais interativo, mas adiciona listeners, atualizações frequentes e movimento que pode distrair durante o login.
+3. **Canvas com partículas.** Teria maior impacto visual, porém aumentaria bundle, uso de GPU e manutenção sem melhorar a tarefa principal.
+
+### Decisões
+
+| Decisão | Alternativas | Motivo |
+| --- | --- | --- |
+| Restringir esta cena a `lg` | Reutilizar o mesmo feixe no celular | Evita transportar a composição larga para um viewport estreito. |
+| Usar um feixe de 16 segundos com abertura imediata | Brilho atrasado ou partículas | Mantém a primeira passagem perceptível, porém mais lenta, e espaça os ciclos seguintes. |
+| Animar marca e frase somente na entrada | Repetir texto em loop | Garante legibilidade e evita fadiga visual. |
+| Pulsar apenas o halo do selo | Mover ícone e texto | Comunica segurança sem prejudicar leitura. |
+| Desativar loops com movimento reduzido | Manter animação lenta | Respeita a preferência do sistema e mantém fallback completo. |
+
+### Testes
+
+- A cena decorativa existe somente no painel desktop e permanece fora da árvore acessível.
+- Feixe, marca, frase e halo do selo recebem ganchos de animação estáveis.
+- As regras CSS usam apenas `transform` e `opacity` e têm fallback explícito para movimento reduzido.
+
+## Complemento: grid técnico vivo no mobile
+
+### Entendimento confirmado
+
+- O login mobile deve ganhar profundidade visual em iPhone e Android sem atrasar ou bloquear a digitação.
+- O grid deve começar assim que a página abrir e ser perceptível antes de o usuário informar a senha.
+- A cena desktop também deve iniciar imediatamente; não pode depender de um atraso longo para revelar o feixe.
+- O movimento será decorativo, ficará fora da árvore acessível e não alterará o layout quando o teclado virtual abrir.
+- Não serão usados canvas, vídeo, partículas, listeners ou loops em JavaScript.
+
+### Premissas
+
+- O usuário permanece pouco tempo na tela, então um movimento CSS contínuo e leve tem impacto de bateria aceitável.
+- A aplicação continua sendo uma PWA Next.js usada em navegadores de iPhone e Android.
+- A autenticação, o conteúdo e os alvos de toque existentes não serão modificados.
+- O fallback com `prefers-reduced-motion` mantém o grid estático e revela os elementos imediatamente.
+
+### Alternativas consideradas
+
+1. **Grid técnico vivo — escolhida.** Uma malha sutil se desloca em uma camada maior que o viewport, com máscara que favorece a região da marca e perde força sobre o formulário.
+2. **Corte de precisão.** Um traço único revela a marca e desaparece; tem ótimo desempenho, mas oferece menos presença no espaço vazio do mobile.
+3. **Pulso no logotipo.** É a alternativa mais leve, porém menos memorável e com menor continuidade visual em relação ao painel desktop.
+
+### Design final
+
+1. O grid mobile aparece nos primeiros 250 ms e inicia o deslocamento no primeiro frame, usando somente `translate3d` e `opacity`.
+2. Um brilho difuso percorre a região da marca durante aproximadamente 1,8 segundo e depois reaparece de forma mais discreta no ciclo ambiente.
+3. A máscara mantém o grid mais evidente na área livre e atrás da marca, reduzindo sua intensidade sobre campo, ajuda e botão.
+4. A camada usa posicionamento absoluto, `pointer-events: none` e dimensões excedentes para não causar reflow, overflow ou saltos com o teclado virtual.
+5. No desktop, o feixe começa visualmente em até 100 ms e leva cerca de 4 segundos para atravessar o painel; os ciclos seguintes permanecem mais espaçados.
+6. Com movimento reduzido, feixe, brilho e deslocamento deixam de animar, mantendo uma composição estática completa.
+
+### Decisões
+
+| Decisão | Alternativas | Motivo |
+| --- | --- | --- |
+| Usar grid em movimento no mobile | Corte único ou halo no logo | Preenche o espaço negativo e cria continuidade com a estética técnica do desktop. |
+| Começar no primeiro frame | Aguardar a entrada do formulário | Garante que usuários que digitam rapidamente percebam a assinatura visual. |
+| Destacar a primeira passagem | Usar um ciclo sempre igual | Torna a abertura perceptível sem manter a mesma intensidade durante todo o login. |
+| Animar uma camada excedente com `transform` | Animar `background-position` | Mantém o trabalho no compositor e evita repintura contínua do grid. |
+| Mascarar a região do formulário | Aplicar opacidade uniforme | Preserva contraste e concentração na tarefa principal. |
+
+### Testes
+
+- O grid mobile está presente, é decorativo e não recebe eventos de ponteiro.
+- A animação mobile não depende de breakpoint desktop e começa sem atraso.
+- O primeiro feixe desktop não possui atraso e fica visível no início do ciclo.
+- Todas as animações contínuas usam apenas `transform` e `opacity`.
+- O fallback de movimento reduzido desativa os loops e mantém a composição legível.
