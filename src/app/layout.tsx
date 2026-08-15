@@ -3,7 +3,11 @@ import { Toaster } from "sonner";
 import { ThemeProvider } from "@/components/theme-provider";
 import "./globals.css";
 
-// Cormorant Garamond - editorial serif for premium branding
+const BRAND_ICON_VERSION = "20260815";
+const BRAND_ICON_192 = `/icons/icon-192.png?v=${BRAND_ICON_VERSION}`;
+const BRAND_ICON_512 = `/icons/icon-512.png?v=${BRAND_ICON_VERSION}`;
+const BRAND_APPLE_ICON = `/icons/apple-touch-icon.png?v=${BRAND_ICON_VERSION}`;
+
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
@@ -14,12 +18,44 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://se7e-go.vercel.app"),
+  applicationName: "SE7E Alumínio & Vidros",
   title: "SE7E - Gerador de Orçamentos",
   description:
     "Sistema de geração de orçamentos profissionais para a SE7E Alumínio & Vidros. Crie, edite e exporte orçamentos em PDF com design premium.",
   icons: {
-    icon: "/favicon.ico",
-    apple: "/icons/apple-touch-icon.png",
+    icon: [
+      { url: BRAND_ICON_192, sizes: "192x192", type: "image/png" },
+      { url: BRAND_ICON_512, sizes: "512x512", type: "image/png" },
+    ],
+    shortcut: BRAND_ICON_192,
+    apple: [{ url: BRAND_APPLE_ICON, sizes: "180x180", type: "image/png" }],
+  },
+  appleWebApp: {
+    capable: true,
+    title: "SE7E",
+    statusBarStyle: "black-translucent",
+  },
+  openGraph: {
+    type: "website",
+    locale: "pt_BR",
+    siteName: "SE7E Alumínio & Vidros",
+    title: "SE7E Alumínio & Vidros",
+    description: "Orçamentos profissionais da SE7E Alumínio & Vidros.",
+    images: [
+      {
+        url: BRAND_ICON_512,
+        width: 512,
+        height: 512,
+        alt: "SE7E Alumínio & Vidros",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary",
+    title: "SE7E Alumínio & Vidros",
+    description: "Orçamentos profissionais da SE7E Alumínio & Vidros.",
+    images: [BRAND_ICON_512],
   },
 };
 
