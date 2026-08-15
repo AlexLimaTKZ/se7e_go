@@ -7,6 +7,8 @@ import { normalizeBrazilianWhatsAppPhone } from "@/lib/pdf/share";
 
 interface QuoteWhatsAppShareButtonProps {
   quoteId: number;
+  quoteNumber?: string;
+  clientName?: string;
   clientPhone: string;
 }
 
