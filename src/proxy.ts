@@ -9,6 +9,7 @@ export async function proxy(request: NextRequest) {
   const isPublic =
     publicPaths.has(pathname) ||
     pathname.startsWith("/api/shared-quotes/") ||
+    pathname.startsWith("/compartilhar/orcamento/") ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/icons") ||
     staticFileExtensions.test(pathname) ||
