@@ -24,11 +24,30 @@ describe("quote PDF rendering", () => {
       notes: "Teste de geração",
       items: [
         {
-          title: "Janela de vidro",
+          title: "Box de vidro",
           width: 1.2,
           height: 1.5,
           quantity: 2,
           unit_price: 500,
+        },
+        {
+          title: "Janela de correr",
+          dimensions: [
+            {
+              label: "Sala",
+              width: 1000,
+              height: 2000,
+              quantity: 2,
+              unit_price: 500,
+            },
+            {
+              label: "Cozinha",
+              width: 3000,
+              height: 2000,
+              quantity: 2,
+              unit_price: 300,
+            },
+          ],
         },
       ],
     });
