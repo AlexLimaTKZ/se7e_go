@@ -21,6 +21,11 @@ const money = customType<{ data: number; driverData: number }>({
   },
 });
 
+export const appMigrations = sqliteTable("app_migrations", {
+  id: text("id").primaryKey(),
+  appliedAt: text("applied_at").notNull(),
+});
+
 export const clients = sqliteTable("clients", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   name: text("name").notNull().unique(),
