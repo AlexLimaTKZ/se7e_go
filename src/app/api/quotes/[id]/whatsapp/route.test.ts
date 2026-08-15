@@ -44,7 +44,7 @@ afterEach(() => {
 });
 
 describe("GET /api/quotes/[id]/whatsapp", () => {
-  it("redirects straight to the saved client number with the signed PDF link", async () => {
+  it("redirects straight to the saved client number with the public quote viewer link", async () => {
     const request = new NextRequest("https://se7e-go.vercel.app/api/quotes/42/whatsapp", {
       headers: { "user-agent": "Mozilla/5.0 (Linux; Android 15)" },
     });
@@ -55,7 +55,7 @@ describe("GET /api/quotes/[id]/whatsapp", () => {
     const location = response.headers.get("location") || "";
     expect(location).toContain("https://wa.me/5586995971050?");
     expect(decodeURIComponent(location)).toContain(
-      "https://se7e-go.vercel.app/api/shared-quotes/42?token=signed-token",
+      "https://se7e-go.vercel.app/compartilhar/orcamento/42?token=signed-token",
     );
     expect(decodeURIComponent(location)).toContain("orçamento #5044");
     expect(dependencies.createQuoteShareToken).toHaveBeenCalledWith(
