@@ -7,9 +7,33 @@ import { verifyQuoteShareToken } from "@/lib/quotes/share-token";
 
 export const dynamic = "force-dynamic";
 
+const SHARED_QUOTE_PREVIEW_IMAGE = "/icons/icon-512.png?v=20260815";
+
 export const metadata: Metadata = {
   title: "Orçamento | SE7E Alumínio",
+  description: "Visualize seu orçamento da SE7E Alumínio & Vidros.",
   robots: { index: false, follow: false, nocache: true },
+  openGraph: {
+    type: "website",
+    locale: "pt_BR",
+    siteName: "SE7E Alumínio & Vidros",
+    title: "Orçamento | SE7E Alumínio",
+    description: "Visualize seu orçamento da SE7E Alumínio & Vidros.",
+    images: [
+      {
+        url: SHARED_QUOTE_PREVIEW_IMAGE,
+        width: 512,
+        height: 512,
+        alt: "SE7E Alumínio & Vidros",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary",
+    title: "Orçamento | SE7E Alumínio",
+    description: "Visualize seu orçamento da SE7E Alumínio & Vidros.",
+    images: [SHARED_QUOTE_PREVIEW_IMAGE],
+  },
 };
 
 function parseId(id: string): number | null {
