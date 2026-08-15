@@ -47,12 +47,14 @@ const styles = StyleSheet.create({
   itemTitle: { fontSize: 9.5, fontFamily: "Helvetica-Bold", marginBottom: 6, textTransform: "uppercase" },
   itemBody: { flexDirection: "row", gap: 10 },
   itemImage: { width: 72, height: 72, objectFit: "contain", borderWidth: 0.5, borderColor: "#dddddd" },
-  itemDetails: { flexGrow: 1, flexShrink: 1 },
+  itemDetails: { flexGrow: 1, flexShrink: 1, flexBasis: 0 },
   detailLine: { marginBottom: 2 },
-  dimensionRow: { flexDirection: "row", justifyContent: "space-between", gap: 8, marginBottom: 2 },
-  dimensionLabel: { flexGrow: 1, flexShrink: 1 },
-  value: { fontFamily: "Helvetica-Bold", textAlign: "right" },
-  itemTotal: { marginTop: 5, fontFamily: "Helvetica-Bold", textAlign: "right" },
+  dimensionRow: { flexDirection: "row", alignItems: "flex-start", marginBottom: 2 },
+  dimensionLabel: { flexGrow: 1, flexShrink: 1, paddingRight: 10 },
+  value: { width: 112, flexShrink: 0, fontFamily: "Helvetica-Bold", textAlign: "right" },
+  itemPrices: { marginTop: 5, alignItems: "flex-end" },
+  priceLine: { width: 170, marginBottom: 2, textAlign: "right" },
+  itemTotal: { width: 170, marginTop: 2, fontFamily: "Helvetica-Bold", textAlign: "right" },
   summary: { borderTopWidth: 1.5, borderTopColor: "#111111", paddingTop: 10, marginTop: 5 },
   summaryRow: { flexDirection: "row", justifyContent: "space-between", gap: 20 },
   conditions: { flexGrow: 1, flexShrink: 1 },
@@ -63,7 +65,8 @@ const styles = StyleSheet.create({
   notes: { marginTop: 11, padding: 8, backgroundColor: "#f6f6f6", borderWidth: 0.5, borderColor: "#cccccc" },
   notesTitle: { fontFamily: "Helvetica-Bold", marginBottom: 3 },
   signatures: { flexDirection: "row", gap: 34, marginTop: 35 },
-  signature: { flexGrow: 1, borderTopWidth: 0.7, borderTopColor: "#111111", paddingTop: 4, textAlign: "center", fontFamily: "Helvetica-Bold", textTransform: "uppercase" },
+  signatureBlock: { flexGrow: 1, flexBasis: 0, borderTopWidth: 0.7, borderTopColor: "#111111" },
+  signatureName: { width: "100%", paddingTop: 4, textAlign: "center", fontFamily: "Helvetica-Bold", textTransform: "uppercase" },
   footer: { position: "absolute", bottom: 18, left: 34, right: 34, textAlign: "center", color: "#777777", fontSize: 7 },
 });
 
@@ -152,12 +155,14 @@ function QuotePdfDocument({ quote, logo, itemImages }: QuotePdfDocumentProps) {
                     {item.aluminumColor ? <Text style={styles.detailLine}>COR DOS ALUMÍNIOS: {item.aluminumColor}</Text> : null}
                     {item.hardwareColor ? <Text style={styles.detailLine}>COR DAS FERRAGENS: {item.hardwareColor}</Text> : null}
                     <Text style={styles.detailLine}>QUANTIDADE: {item.quantity}</Text>
-                    {item.unitPrice !== null && item.unitPrice > 0 ? (
-                      <Text style={styles.detailLine}>VALOR UNITÁRIO: {money(item.unitPrice)}</Text>
-                    ) : null}
                   </>
                 )}
-                <Text style={styles.itemTotal}>VALOR TOTAL: {money(item.totalPrice)}</Text>
+                <View style={styles.itemPrices}>
+                  {item.dimensions.length === 0 && item.unitPrice !== null && item.unitPrice > 0 ? (
+                    <Text style={styles.priceLine}>VALOR UNITÁRIO: {money(item.unitPrice)}</Text>
+                  ) : null}
+                  <Text style={styles.itemTotal}>VALOR TOTAL: {money(item.totalPrice)}</Text>
+                </View>
               </View>
             </View>
           </View>
@@ -182,8 +187,12 @@ function QuotePdfDocument({ quote, logo, itemImages }: QuotePdfDocumentProps) {
             </View>
           ) : null}
           <View style={styles.signatures}>
-            <Text style={styles.signature}>{quote.client.name}</Text>
-            <Text style={styles.signature}>{companyData.name}</Text>
+            <View style={styles.signatureBlock}>
+              <Text style={styles.signatureName}>{quote.client.name}</Text>
+            </View>
+            <View style={styles.signatureBlock}>
+              <Text style={styles.signatureName}>{companyData.name}</Text>
+            </View>
           </View>
         </View>
 
