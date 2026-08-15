@@ -39,6 +39,15 @@ describe("PDF sharing helpers", () => {
       .toContain("wa.me/5586995971050?");
   });
 
+  it("builds a direct WhatsApp Web URL for desktop browsers", async () => {
+    const helpers = await loadModule();
+    expect(helpers).not.toBeNull();
+    if (!helpers) return;
+
+    expect(helpers.buildWhatsAppUrl("(86) 99597-1050", "Olá cliente", { useWeb: true }))
+      .toBe("https://web.whatsapp.com/send?phone=5586995971050&text=Ol%C3%A1%20cliente");
+  });
+
   it("detects iPhone and touch-enabled iPad user agents", async () => {
     const helpers = await loadModule();
     expect(helpers).not.toBeNull();
@@ -47,6 +56,16 @@ describe("PDF sharing helpers", () => {
     expect(helpers.isAppleMobileDevice({ userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0)", platform: "iPhone", maxTouchPoints: 5 })).toBe(true);
     expect(helpers.isAppleMobileDevice({ userAgent: "Mozilla/5.0 (Macintosh)", platform: "MacIntel", maxTouchPoints: 5 })).toBe(true);
     expect(helpers.isAppleMobileDevice({ userAgent: "Mozilla/5.0 (Linux; Android 15)", platform: "Linux armv8l", maxTouchPoints: 5 })).toBe(false);
+  });
+
+  it("distinguishes desktop browsers from mobile devices", async () => {
+    const helpers = await loadModule();
+    expect(helpers).not.toBeNull();
+    if (!helpers) return;
+
+    expect(helpers.isMobileDevice({ userAgent: "Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 Mobile Safari/537.36" })).toBe(true);
+    expect(helpers.isMobileDevice({ userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) Mobile/15E148" })).toBe(true);
+    expect(helpers.isMobileDevice({ userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/151.0 Safari/537.36" })).toBe(false);
   });
 
   it("builds a file-only native share payload so iOS cannot append a blob URL", async () => {
