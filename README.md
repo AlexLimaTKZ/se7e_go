@@ -1,36 +1,60 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# SE7E — Gerador de Orçamentos
 
-## Getting Started
+Aplicação Next.js para criar, editar, duplicar, pesquisar e imprimir orçamentos. Os dados ficam no Turso e as imagens de catálogo no Vercel Blob. A interface é PWA e foi otimizada para formulários longos no iPhone.
 
-First, run the development server:
+## Requisitos
+
+- Node.js 20 ou superior
+- Banco Turso/libSQL
+- Vercel Blob para o catálogo de imagens
+
+## Configuração local
+
+1. Copie `.env.example` para `.env.local`.
+2. Preencha `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, `BLOB_READ_WRITE_TOKEN`, `APP_PASSWORD` e `AUTH_SECRET`.
+3. Use uma senha exclusiva em `APP_PASSWORD`. Não existe senha padrão no código.
+4. Gere um segredo aleatório longo para `AUTH_SECRET`; ele assina sessões com expiração.
+5. Instale e prepare o banco:
+
+```bash
+npm install
+npx drizzle-kit push
+```
+
+6. Inicie em desenvolvimento:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Acesse [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Verificações
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm test
+npm run lint
+npm run build
+npm audit
+```
 
-## Learn More
+## Comportamento móvel
 
-To learn more about Next.js, take a look at the following resources:
+- somente um item do orçamento fica expandido por vez;
+- rascunhos são salvos localmente após alterações e no evento `pagehide`;
+- valores aceitam vírgula no teclado decimal do iPhone;
+- controles principais têm área de toque mínima de 44 px;
+- a barra inferior respeita a safe area e sai da frente durante a digitação;
+- a gravação definitiva é validada e recalculada no servidor dentro de uma transação.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+O rascunho local ajuda na recuperação após interrupções, mas só o botão **Salvar orçamento** grava no Turso.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Segurança
 
-## Deploy on Vercel
+- sessão assinada por HMAC, com nonce e expiração;
+- limitação de tentativas de login persistida no Turso;
+- proxy de imagens restrito ao hostname público exato do Vercel Blob, sem encaminhar tokens;
+- upload limitado a 10 MB e validado por MIME e assinatura do arquivo;
+- cabeçalhos CSP, `nosniff`, política de referência e permissões restritas.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Consulte [COMO_CONFIGURAR_O_PROJETO.md](./COMO_CONFIGURAR_O_PROJETO.md) e [DEPLOY_E_PWA.md](./DEPLOY_E_PWA.md) para a preparação dos serviços e publicação.

@@ -1,64 +1,92 @@
-type RateLimitInfo = {
-  count: number;
-  blockedUntil: number | null;
-};
-
-// Use globalThis to persist the map across Fast Refresh in dev mode
-const globalScope = globalThis as unknown as {
-  __rateLimitMap?: Map<string, RateLimitInfo>;
-};
-
-if (!globalScope.__rateLimitMap) {
-  globalScope.__rateLimitMap = new Map<string, RateLimitInfo>();
-}
-
-export const rateLimitMap = globalScope.__rateLimitMap;
+import { eq, sql } from "drizzle-orm";
+import { getDb } from "./db";
+import { loginAttempts } from "./db/schema";
 
 const MAX_FAILURES = 5;
-const BLOCK_DURATION_MS = 15 * 60 * 1000; // 15 minutos
+const BLOCK_DURATION_MS = 15 * 60 * 1_000;
+const ATTEMPT_RETENTION_MS = 24 * 60 * 60 * 1_000;
+let tableReady: Promise<void> | undefined;
 
-export function getRateLimitStatus(ip: string): { blocked: boolean; message?: string } {
+function ensureTable(): Promise<void> {
+  tableReady ??= getDb()
+    .run(sql`
+      CREATE TABLE IF NOT EXISTS login_attempts (
+        ip_hash TEXT PRIMARY KEY NOT NULL,
+        count INTEGER NOT NULL DEFAULT 0,
+        blocked_until INTEGER,
+        updated_at INTEGER NOT NULL
+      )
+    `)
+    .then(() => undefined);
+  return tableReady;
+}
+
+async function hashIp(ip: string): Promise<string> {
+  const data = new TextEncoder().encode(ip);
+  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", data));
+  return Array.from(digest, (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function blockedMessage(blockedUntil: number, now: number): string {
+  const minutes = Math.max(1, Math.ceil((blockedUntil - now) / 60_000));
+  return `Muitas tentativas. Tente novamente em ${minutes} min.`;
+}
+
+export async function getRateLimitStatus(
+  ip: string,
+): Promise<{ blocked: boolean; message?: string }> {
+  await ensureTable();
   const now = Date.now();
-  const info = rateLimitMap.get(ip);
+  const ipHash = await hashIp(ip);
+  const [attempt] = await getDb()
+    .select()
+    .from(loginAttempts)
+    .where(eq(loginAttempts.ipHash, ipHash))
+    .limit(1);
 
-  if (info && info.blockedUntil && info.blockedUntil > now) {
-    const remainingMinutes = Math.ceil((info.blockedUntil - now) / 60000);
-    return {
-      blocked: true,
-      message: `Muitas tentativas. Bloqueado. Tente novamente em ${remainingMinutes} min.`,
-    };
+  if (attempt?.blockedUntil && attempt.blockedUntil > now) {
+    return { blocked: true, message: blockedMessage(attempt.blockedUntil, now) };
   }
-
-  // Se o tempo passou, remove o bloqueio
-  if (info && info.blockedUntil && info.blockedUntil <= now) {
-    rateLimitMap.delete(ip);
+  if (attempt && attempt.updatedAt < now - ATTEMPT_RETENTION_MS) {
+    await getDb().delete(loginAttempts).where(eq(loginAttempts.ipHash, ipHash));
   }
-
   return { blocked: false };
 }
 
-export function registerFailedLogin(ip: string): { blocked: boolean; message?: string } {
+export async function registerFailedLogin(
+  ip: string,
+): Promise<{ blocked: boolean; message?: string }> {
+  await ensureTable();
   const now = Date.now();
-  const info = rateLimitMap.get(ip) || { count: 0, blockedUntil: null };
+  const ipHash = await hashIp(ip);
 
-  info.count += 1;
+  return getDb().transaction(async (transaction) => {
+    const [current] = await transaction
+      .select()
+      .from(loginAttempts)
+      .where(eq(loginAttempts.ipHash, ipHash))
+      .limit(1);
+    const currentCount =
+      current && current.updatedAt >= now - ATTEMPT_RETENTION_MS ? current.count : 0;
+    const count = currentCount + 1;
+    const blockedUntil = count >= MAX_FAILURES ? now + BLOCK_DURATION_MS : null;
 
-  if (info.count >= MAX_FAILURES) {
-    info.blockedUntil = now + BLOCK_DURATION_MS;
-    rateLimitMap.set(ip, info);
-    console.warn(`🚨 [SEGURANÇA] IP Bloqueado por força bruta: ${ip}`);
-    return {
-      blocked: true,
-      message: `Muitas tentativas. Bloqueado. Tente novamente em 15 min.`,
-    };
-  }
+    await transaction
+      .insert(loginAttempts)
+      .values({ ipHash, count, blockedUntil, updatedAt: now })
+      .onConflictDoUpdate({
+        target: loginAttempts.ipHash,
+        set: { count, blockedUntil, updatedAt: now },
+      });
 
-  console.log(`⚠️ [SEGURANÇA] Tentativa falha de login do IP: ${ip} (Tentativa ${info.count}/${MAX_FAILURES})`);
-  rateLimitMap.set(ip, info);
-  return { blocked: false };
+    return blockedUntil
+      ? { blocked: true, message: blockedMessage(blockedUntil, now) }
+      : { blocked: false };
+  });
 }
 
-
-export function resetLoginAttempts(ip: string) {
-  rateLimitMap.delete(ip);
+export async function resetLoginAttempts(ip: string): Promise<void> {
+  await ensureTable();
+  const ipHash = await hashIp(ip);
+  await getDb().delete(loginAttempts).where(eq(loginAttempts.ipHash, ipHash));
 }

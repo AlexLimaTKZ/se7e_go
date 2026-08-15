@@ -1,61 +1,113 @@
-import { NextRequest, NextResponse } from "next/server";
-import { hashPassword } from "@/lib/auth";
+import { NextResponse } from "next/server";
+import { createAuthToken, passwordMatches } from "@/lib/auth";
 import { getRateLimitStatus, registerFailedLogin, resetLoginAttempts } from "@/lib/rate-limit";
+import { parseLoginInput } from "@/lib/security/login-input";
 
-export async function POST(request: NextRequest) {
-  try {
-    // Obter IP para Rate Limiting
-    const ip = request.headers.get("x-forwarded-for") || "unknown_ip";
-    
-    // 1. Checa se já está bloqueado ANTES de processar
-    const status = getRateLimitStatus(ip);
-    if (status.blocked) {
-      return NextResponse.json({ error: status.message }, { status: 429 }); // 429 Too Many Requests
+const MAX_LOGIN_REQUEST_BYTES = 1024;
+const NO_STORE_HEADERS = {
+  "Cache-Control": "no-store",
+  "X-Content-Type-Options": "nosniff",
+};
+
+function jsonResponse(body: object, status = 200): NextResponse {
+  return NextResponse.json(body, {
+    status,
+    headers: NO_STORE_HEADERS,
+  });
+}
+
+function requestTooLargeResponse(): NextResponse {
+  return jsonResponse({ error: "A solicitação de login é grande demais." }, 413);
+}
+
+async function readJsonBody(request: Request): Promise<
+  | { ok: true; value: unknown }
+  | { ok: false; response: NextResponse }
+> {
+  const contentLength = Number(request.headers.get("content-length") || 0);
+  if (Number.isFinite(contentLength) && contentLength > MAX_LOGIN_REQUEST_BYTES) {
+    return { ok: false, response: requestTooLargeResponse() };
+  }
+
+  const reader = request.body?.getReader();
+  const decoder = new TextDecoder();
+  const chunks: string[] = [];
+  let totalBytes = 0;
+
+  if (reader) {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      totalBytes += value.byteLength;
+      if (totalBytes > MAX_LOGIN_REQUEST_BYTES) {
+        await reader.cancel();
+        return { ok: false, response: requestTooLargeResponse() };
+      }
+      chunks.push(decoder.decode(value, { stream: true }));
     }
+    chunks.push(decoder.decode());
+  }
 
-    const { password } = await request.json();
+  try {
+    return { ok: true, value: JSON.parse(chunks.join("")) as unknown };
+  } catch {
+    return {
+      ok: false,
+      response: jsonResponse({ error: "O corpo da solicitação não contém um JSON válido." }, 400),
+    };
+  }
+}
 
-    if (!password) {
-      return NextResponse.json(
-        { error: "Senha é obrigatória." },
-        { status: 400 }
+export async function POST(request: Request): Promise<Response> {
+  try {
+    const ip =
+      request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+      request.headers.get("x-real-ip")?.trim() ||
+      "unknown_ip";
+
+    const status = await getRateLimitStatus(ip);
+    if (status.blocked) {
+      return jsonResponse(
+        { error: status.message || "Muitas tentativas. Tente novamente mais tarde." },
+        429,
       );
     }
 
-    const correctPassword = process.env.APP_PASSWORD;
+    const body = await readJsonBody(request);
+    if (!body.ok) return body.response;
 
-    if (password !== correctPassword) {
-      // 2. Se a senha errou, registra a falha no rate limiter
-      const failStatus = registerFailedLogin(ip);
-      
-      if (failStatus.blocked) {
-        return NextResponse.json({ error: failStatus.message }, { status: 429 });
-      }
-
-      return NextResponse.json({ error: "Senha incorreta." }, { status: 401 });
+    const parsed = parseLoginInput(body.value);
+    if (!parsed.ok) {
+      return jsonResponse({ error: parsed.error }, 400);
     }
 
-    // 3. Sucesso! Reseta as tentativas e faz o login.
-    resetLoginAttempts(ip);
+    if (!(await passwordMatches(parsed.password))) {
+      const failStatus = await registerFailedLogin(ip);
+      if (failStatus.blocked) {
+        return jsonResponse(
+          { error: failStatus.message || "Muitas tentativas. Tente novamente mais tarde." },
+          429,
+        );
+      }
 
-    // Gerar hash seguro para armazenar no cookie (nunca a senha em texto puro)
-    const token = await hashPassword(password);
+      return jsonResponse({ error: "Senha incorreta." }, 401);
+    }
 
-    const response = NextResponse.json({ success: true });
+    await resetLoginAttempts(ip);
+    const token = await createAuthToken();
+    const response = jsonResponse({ success: true });
 
     response.cookies.set("auth-token", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
-      maxAge: 60 * 60 * 24 * 30, // 30 dias
+      maxAge: 60 * 60 * 24 * 30,
       path: "/",
     });
 
     return response;
-  } catch {
-    return NextResponse.json(
-      { error: "Erro interno do servidor." },
-      { status: 500 }
-    );
+  } catch (error) {
+    console.error("Erro ao autenticar:", error);
+    return jsonResponse({ error: "Erro interno do servidor." }, 500);
   }
 }

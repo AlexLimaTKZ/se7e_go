@@ -1,26 +1,24 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
-import { formatDate, formatCurrency } from "@/lib/formatters";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Suspense, useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+  Copy,
+  FileDown,
+  LayoutList,
+  Loader2,
+  MessageCircle,
+  Pencil,
+  Plus,
+  Search,
+  Trash2,
+} from "lucide-react";
+import { toast } from "sonner";
+import { QuotePreview } from "@/components/pdf/quote-preview";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -29,426 +27,387 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { toast } from "sonner";
+import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
+import { buildQuoteShareText, buildWhatsAppUrl } from "@/lib/pdf/share";
 import {
-  LayoutList,
-  Pencil,
-  FileDown,
-  Trash2,
-  Plus,
-  Loader2,
-  Copy,
-  Search,
-} from "lucide-react";
-import { QuotePreview } from "@/components/pdf/quote-preview";
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { formatCurrency, formatDate } from "@/lib/formatters";
+import {
+  normalizeQuoteStatus,
+  type QuoteStatus,
+} from "@/lib/dashboard/dashboard-presentation";
+import { cn } from "@/lib/utils";
 
 interface QuoteRow {
   id: number;
-  quoteNumber: string;
-  clientName: string;
-  date: string;
-  total: number;
-  status: string;
-  clientPhone?: string;
+  quoteNumber: string | null;
+  clientName: string | null;
+  clientPhone: string | null;
+  date: string | null;
+  total: number | null;
+  status: string | null;
 }
 
-const statusColors: Record<string, string> = {
-  rascunho: "bg-slate-500",
-  enviado: "bg-blue-500",
-  aprovado: "bg-green-500",
-  recusado: "bg-red-500",
-  concluído: "bg-purple-500",
+interface QuoteDetailItem {
+  id: number;
+  title: string;
+  image_url: string | null;
+  width: number | null;
+  height: number | null;
+  glass: string | null;
+  aluminum: string | null;
+  hardware: string | null;
+  quantity: number | null;
+  unit_price: number | null;
+  total_price: number | null;
+  dimensions?: Array<{
+    id: number;
+    label: string | null;
+    width: number | null;
+    height: number | null;
+    quantity: number | null;
+    unit_price: number | null;
+    total_price: number | null;
+  }>;
+}
+
+interface QuoteDetail {
+  quoteNumber: string | null;
+  date: string | null;
+  deliveryDate: string | null;
+  validUntil: string | null;
+  payment_conditions?: string | null;
+  discount?: number | null;
+  notes?: string | null;
+  total: number | null;
+  client: { name: string; address: string | null; phone: string | null } | null;
+  items: QuoteDetailItem[];
+}
+
+type PreviewData = {
+  client: { name: string; address: string; phone: string };
+  quote: Parameters<typeof QuotePreview>[0]["quote"];
 };
 
+const statusStyles: Record<string, string> = {
+  rascunho: "bg-slate-600 text-white",
+  enviado: "bg-blue-600 text-white",
+  aprovado: "bg-emerald-600 text-white",
+  recusado: "bg-red-600 text-white",
+  concluido: "bg-purple-600 text-white",
+};
+
+const statusLabels: Record<string, string> = {
+  rascunho: "Rascunho",
+  enviado: "Enviado",
+  aprovado: "Aprovado",
+  recusado: "Recusado",
+  concluido: "Concluído",
+};
+
+const statusFilters: Array<{ value: QuoteStatus | null; label: string }> = [
+  { value: null, label: "Todos" },
+  { value: "rascunho", label: "Rascunhos" },
+  { value: "enviado", label: "Enviados" },
+  { value: "aprovado", label: "Aprovados" },
+  { value: "recusado", label: "Recusados" },
+  { value: "concluido", label: "Concluídos" },
+];
+
+function QuotesListFallback() {
+  return (
+    <div className="space-y-4" role="status">
+      <Skeleton className="h-10 w-52" />
+      <Skeleton className="h-11 w-full max-w-md" />
+      <Skeleton className="h-72 w-full" />
+      <span className="sr-only">Carregando orçamentos</span>
+    </div>
+  );
+}
+
 export default function QuotesListPage() {
+  return (
+    <Suspense fallback={<QuotesListFallback />}>
+      <QuotesListContent />
+    </Suspense>
+  );
+}
+
+function QuotesListContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const status = normalizeQuoteStatus(searchParams.get("status"));
   const [quotes, setQuotes] = useState<QuoteRow[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
+  const [query, setQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [deleting, setDeleting] = useState(false);
-  const [pdfQuote, setPdfQuote] = useState<{
-    client: { name: string; address: string; phone: string };
-    quote: {
-      quote_number: string;
-      date: string;
-      delivery_date: string;
-      valid_until: string;
-      payment_conditions: string;
-      discount: number;
-      notes: string;
-      total: number;
-      items: Array<{
-        title: string;
-        image_url: string;
-        width: number;
-        height: number;
-        glass: string;
-        aluminum: string;
-        hardware: string;
-        quantity: number;
-        unit_price: number;
-        total_price: number;
-        dimensions?: Array<{
-          label: string;
-          width: number;
-          height: number;
-          quantity: number;
-          unit_price: number;
-          total_price: number;
-        }>;
-      }>;
-    };
-  } | null>(null);
+  const [pdfQuote, setPdfQuote] = useState<PreviewData | null>(null);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      setQuery(searchTerm.trim());
+      setPage(1);
+    }, 300);
+    return () => window.clearTimeout(timeout);
+  }, [searchTerm]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [status]);
 
   const loadQuotes = useCallback(async () => {
+    setLoading(true);
     try {
-      const res = await fetch("/api/quotes");
-      if (res.ok) {
-        const data = await res.json();
-        setQuotes(data);
-      }
-    } catch (error) {
-      console.error("Erro ao carregar orçamentos:", error);
+      const parameters = new URLSearchParams({ page: String(page), limit: "10" });
+      if (query) parameters.set("search", query);
+      if (status) parameters.set("status", status);
+      const response = await fetch(`/api/quotes?${parameters}`);
+      if (!response.ok) throw new Error();
+      const data = (await response.json()) as {
+        items: QuoteRow[];
+        total: number;
+        totalPages: number;
+      };
+      setQuotes(data.items);
+      setTotal(data.total);
+      setTotalPages(data.totalPages);
+    } catch {
       toast.error("Erro ao carregar orçamentos.");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [page, query, status]);
 
   useEffect(() => {
-    loadQuotes();
+    void loadQuotes();
   }, [loadQuotes]);
 
   const handleDelete = async () => {
     if (!deleteId) return;
     setDeleting(true);
-
     try {
-      const res = await fetch(`/api/quotes/${deleteId}`, {
-        method: "DELETE",
-      });
-
-      if (res.ok) {
-        toast.success("Orçamento excluído com sucesso.");
-        setQuotes(quotes.filter((q) => q.id !== deleteId));
-      } else {
-        toast.error("Erro ao excluir orçamento.");
-      }
+      const response = await fetch(`/api/quotes/${deleteId}`, { method: "DELETE" });
+      if (!response.ok) throw new Error();
+      toast.success("Orçamento excluído com sucesso.");
+      setDeleteId(null);
+      await loadQuotes();
     } catch {
-      toast.error("Erro de conexão.");
+      toast.error("Erro ao excluir orçamento.");
     } finally {
       setDeleting(false);
-      setDeleteId(null);
     }
   };
 
   const handleDuplicate = async (id: number) => {
     try {
-      const res = await fetch(`/api/quotes/${id}/duplicate`, {
-        method: "POST",
-      });
-
-      if (res.ok) {
-        toast.success("Orçamento duplicado com sucesso.");
-        // Recarregar a lista
-        loadQuotes();
-      } else {
-        toast.error("Erro ao duplicar orçamento.");
-      }
+      const response = await fetch(`/api/quotes/${id}/duplicate`, { method: "POST" });
+      if (!response.ok) throw new Error();
+      toast.success("Orçamento duplicado com sucesso.");
+      await loadQuotes();
     } catch {
-      toast.error("Erro de conexão.");
+      toast.error("Erro ao duplicar orçamento.");
     }
   };
 
   const handleGeneratePdf = async (id: number) => {
     try {
-      const res = await fetch(`/api/quotes/${id}`);
-      if (!res.ok) throw new Error();
-      const data = await res.json();
-
+      const response = await fetch(`/api/quotes/${id}`);
+      if (!response.ok) throw new Error();
+      const data = (await response.json()) as QuoteDetail;
       setPdfQuote({
-        client: data.client,
+        client: {
+          name: data.client?.name || "",
+          address: data.client?.address || "",
+          phone: data.client?.phone || "",
+        },
         quote: {
-          quote_number: data.quoteNumber,
-          date: data.date,
-          delivery_date: data.deliveryDate,
-          valid_until: data.validUntil,
-          payment_conditions: data.paymentConditions || "",
+          quote_number: data.quoteNumber || "",
+          date: data.date || "",
+          delivery_date: data.deliveryDate || "",
+          valid_until: data.validUntil || "",
+          payment_conditions: data.payment_conditions || "",
           discount: data.discount || 0,
           notes: data.notes || "",
-          total: data.total,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          items: data.items.map((item: any) => ({
-              title: item.title,
-              image_url: item.image_url || "",
-              width: item.width || 0,
-              height: item.height || 0,
-              glass: item.glass || "",
-              aluminum: item.aluminum || "",
-              hardware: item.hardware || "",
-              quantity: item.quantity || 1,
-              unit_price: item.unit_price || 0,
-              total_price: item.total_price || 0,
-              dimensions: item.dimensions || [],
-            })
-          ),
+          total: data.total || 0,
+          items: data.items.map((item) => ({
+            localId: String(item.id),
+            title: item.title,
+            image_url: item.image_url || "",
+            width: item.width || 0,
+            height: item.height || 0,
+            glass: item.glass || "",
+            aluminum: item.aluminum || "",
+            hardware: item.hardware || "",
+            quantity: item.quantity || 1,
+            unit_price: item.unit_price || 0,
+            total_price: item.total_price || 0,
+            dimensions: (item.dimensions || []).map((dimension) => ({
+              localId: String(dimension.id),
+              label: dimension.label || "",
+              width: dimension.width || 0,
+              height: dimension.height || 0,
+              quantity: dimension.quantity || 1,
+              unit_price: dimension.unit_price || 0,
+              total_price: dimension.total_price || 0,
+            })),
+          })),
         },
       });
     } catch {
-      toast.error("Erro ao carregar dados do orçamento.");
+      toast.error("Erro ao carregar os dados do orçamento.");
     }
   };
 
-  // formatDate e formatCurrency importados de @/lib/formatters
+  const openWhatsApp = (quote: QuoteRow) => {
+    const message = buildQuoteShareText(quote.clientName || "Cliente", quote.quoteNumber || "");
+    const url = buildWhatsAppUrl(quote.clientPhone || "", message);
+    if (!url) {
+      toast.error("Cadastre o celular do cliente antes de abrir o WhatsApp.");
+      return;
+    }
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
 
-  const filteredQuotes = quotes.filter(
-    (q) =>
-      q.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (q.quoteNumber && q.quoteNumber.toLowerCase().includes(searchTerm.toLowerCase()))
+  const actions = (quote: QuoteRow) => (
+    <div className="flex flex-wrap justify-end gap-1">
+      <Button variant="ghost" size="icon" onClick={() => router.push(`/novo?id=${quote.id}`)} aria-label="Editar orçamento" title="Editar"><Pencil className="size-4" /></Button>
+      <Button variant="ghost" size="icon" onClick={() => void handleDuplicate(quote.id)} aria-label="Duplicar orçamento" title="Duplicar"><Copy className="size-4" /></Button>
+      <Button variant="ghost" size="icon" onClick={() => openWhatsApp(quote)} aria-label="Enviar mensagem pelo WhatsApp" title="Mensagem WhatsApp"><MessageCircle className="size-4" /></Button>
+      <Button variant="ghost" size="icon" onClick={() => void handleGeneratePdf(quote.id)} aria-label="Visualizar e compartilhar PDF" title="Compartilhar PDF"><FileDown className="size-4" /></Button>
+      <Button variant="ghost" size="icon" onClick={() => setDeleteId(quote.id)} aria-label="Excluir orçamento" title="Excluir" className="hover:text-destructive"><Trash2 className="size-4" /></Button>
+    </div>
   );
+
+  const statusBadge = (status: string | null) => {
+    const normalized = status?.normalize("NFD").replace(/[\u0300-\u036f]/gu, "") || "rascunho";
+    return <Badge className={statusStyles[normalized] || statusStyles.rascunho}>{statusLabels[normalized] || "Rascunho"}</Badge>;
+  };
+
+  const createStatusHref = (nextStatus: QuoteStatus | null) => {
+    const parameters = new URLSearchParams(searchParams.toString());
+    if (nextStatus) parameters.set("status", nextStatus);
+    else parameters.delete("status");
+    parameters.delete("page");
+    const queryString = parameters.toString();
+    return queryString ? `/orcamentos?${queryString}` : "/orcamentos";
+  };
 
   return (
     <div className="space-y-6">
-      {/* Page Header */}
-      <div className="flex items-center justify-between">
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Orçamentos</h1>
-          <p className="text-sm text-muted-foreground">
-            {quotes.length} orçamento{quotes.length !== 1 ? "s" : ""} salvo
-            {quotes.length !== 1 ? "s" : ""}
-          </p>
+          <p className="text-sm text-muted-foreground">{total} orçamento{total === 1 ? "" : "s"} salvo{total === 1 ? "" : "s"}</p>
         </div>
-        <Button onClick={() => router.push("/novo")} className="gap-2">
-          <Plus className="h-4 w-4" />
-          Novo Orçamento
-        </Button>
+        <Button onClick={() => router.push("/novo")}><Plus className="size-4" /> Novo orçamento</Button>
+      </header>
+
+      <div className="relative max-w-md">
+        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+        <Input type="search" value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="Buscar por cliente ou número" className="pl-9" aria-label="Buscar orçamentos" />
       </div>
 
-      {/* Search and Filters */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="relative w-full max-w-sm border-border/60">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            type="search"
-            placeholder="Buscar por cliente ou número..."
-            className="w-full pl-9"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-        </div>
-      </div>
-
-      {/* Table */}
-      <Card className="border-border/60">
-        <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <LayoutList className="h-5 w-5 text-primary" />
-            Lista de Orçamentos
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Nº</TableHead>
-                <TableHead>Cliente</TableHead>
-                <TableHead>Data</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Total</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loading ? (
-                // Skeleton loading
-                Array.from({ length: 3 }).map((_, i) => (
-                  <TableRow key={i}>
-                    <TableCell>
-                      <Skeleton className="h-5 w-12" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="h-5 w-32" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="h-5 w-24" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="ml-auto h-5 w-24" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="ml-auto h-8 w-28" />
-                    </TableCell>
-                  </TableRow>
-                ))
-              ) : quotes.length === 0 ? (
-                <TableRow>
-                  <TableCell
-                    colSpan={5}
-                    className="py-12 text-center text-muted-foreground"
-                  >
-                    <div className="flex flex-col items-center gap-2">
-                      <LayoutList className="h-10 w-10 text-muted-foreground/40" />
-                      <p>Nenhum orçamento encontrado.</p>
-                      <Button
-                        variant="link"
-                        onClick={() => router.push("/novo")}
-                        className="text-primary"
-                      >
-                        Criar o primeiro orçamento
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ) : filteredQuotes.length === 0 ? (
-                <TableRow>
-                  <TableCell
-                    colSpan={5}
-                    className="py-12 text-center text-muted-foreground"
-                  >
-                    <div className="flex flex-col items-center gap-2">
-                      <Search className="h-10 w-10 text-muted-foreground/40" />
-                      <p>Nenhum orçamento encontrado para &quot;{searchTerm}&quot;.</p>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ) : (
-                filteredQuotes.map((quote) => (
-                  <TableRow key={quote.id} className="group">
-                    <TableCell>
-                      <Badge variant="secondary" className="font-mono">
-                        #{quote.quoteNumber}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="font-medium">
-                      {quote.clientName}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {formatDate(quote.date)}
-                    </TableCell>
-                    <TableCell>
-                      <Badge 
-                        variant="secondary" 
-                        className={statusColors[quote.status || "rascunho"] || statusColors["rascunho"]}
-                        style={{ color: "white" }}
-                      >
-                        {(quote.status || "rascunho").toUpperCase()}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right font-semibold text-primary">
-                      {formatCurrency(quote.total)}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                          onClick={() => router.push(`/novo?id=${quote.id}`)}
-                          title="Editar"
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                          onClick={() => handleDuplicate(quote.id)}
-                          title="Duplicar"
-                        >
-                          <Copy className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-muted-foreground hover:text-green-600"
-                          onClick={() => {
-                            const phone = quote.clientPhone ? quote.clientPhone.replace(/\D/g, "") : "";
-                            const firstName = quote.clientName.split(" ")[0];
-                            const msg = encodeURIComponent(`Olá, ${firstName}! Tudo bem?\n\nConforme conversamos, segue em anexo o orçamento detalhado (PDF) referente ao seu projeto. Fico à disposição para esclarecer qualquer dúvida!`);
-                            window.open(`https://wa.me/55${phone}?text=${msg}`, "_blank");
-                          }}
-                          title="Enviar por WhatsApp"
-                        >
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            width="16"
-                            height="16"
-                            fill="currentColor"
-                            viewBox="0 0 16 16"
-                            className="h-4 w-4"
-                          >
-                            <path d="M13.601 2.326A7.85 7.85 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.366 2.76 1.057 3.965L0 16l4.204-1.102a7.9 7.9 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.9 7.9 0 0 0 13.6 2.326zM7.994 14.521a6.6 6.6 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.56 6.56 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592m3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.73.73 0 0 0-.529.247c-.182.198-.691.677-.691 1.654s.71 1.916.81 2.049c.098.133 1.394 2.132 3.383 2.992.47.205.84.326 1.129.418.475.152.904.129 1.246.08.38-.058 1.171-.48 1.338-.943.164-.464.164-.86.114-.943-.049-.084-.182-.133-.38-.232"/>
-                          </svg>
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-muted-foreground hover:text-primary"
-                          onClick={() => handleGeneratePdf(quote.id)}
-                          title="Gerar PDF"
-                        >
-                          <FileDown className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                          onClick={() => setDeleteId(quote.id)}
-                          title="Excluir"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
+      <nav className="flex flex-wrap gap-2" aria-label="Filtrar por status">
+        {statusFilters.map((filter) => {
+          const active = filter.value === status;
+          return (
+            <Link
+              key={filter.value ?? "todos"}
+              href={createStatusHref(filter.value)}
+              aria-current={active ? "page" : undefined}
+              className={cn(
+                buttonVariants({ variant: active ? "secondary" : "outline", size: "sm" }),
+                "h-11 px-3",
+                active && "border-primary/20 bg-primary/10 text-primary",
               )}
-            </TableBody>
-          </Table>
+            >
+              {filter.label}
+            </Link>
+          );
+        })}
+      </nav>
+
+      <Card className="border-border/60">
+        <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><LayoutList className="size-5 text-primary" /> Lista de orçamentos</CardTitle></CardHeader>
+        <CardContent>
+          {loading ? (
+            <div className="space-y-3" role="status">
+              {Array.from({ length: 5 }).map((_, index) => <Skeleton key={index} className="h-16 w-full" />)}
+              <span className="sr-only">Carregando orçamentos</span>
+            </div>
+          ) : quotes.length === 0 ? (
+            <div className="flex flex-col items-center gap-3 py-12 text-center text-muted-foreground">
+              {query ? <Search className="size-10 opacity-40" /> : <LayoutList className="size-10 opacity-40" />}
+              <p>{query ? `Nenhum orçamento encontrado para “${query}”.` : "Nenhum orçamento cadastrado."}</p>
+              {!query && <Button variant="outline" onClick={() => router.push("/novo")}>Criar primeiro orçamento</Button>}
+            </div>
+          ) : (
+            <>
+              <div className="space-y-3 md:hidden">
+                {quotes.map((quote) => (
+                  <article key={quote.id} className="space-y-3 rounded-xl border p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate font-semibold">{quote.clientName || "Cliente não identificado"}</p>
+                        <p className="text-sm text-muted-foreground">#{quote.quoteNumber || "—"} · {formatDate(quote.date || "")}</p>
+                      </div>
+                      {statusBadge(quote.status)}
+                    </div>
+                    <p className="text-xl font-bold text-primary">{formatCurrency(quote.total || 0)}</p>
+                    {actions(quote)}
+                  </article>
+                ))}
+              </div>
+              <div className="hidden md:block">
+                <Table>
+                  <TableHeader><TableRow><TableHead>Nº</TableHead><TableHead>Cliente</TableHead><TableHead>Data</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Total</TableHead><TableHead className="text-right">Ações</TableHead></TableRow></TableHeader>
+                  <TableBody>
+                    {quotes.map((quote) => (
+                      <TableRow key={quote.id}>
+                        <TableCell><Badge variant="secondary" className="font-mono">#{quote.quoteNumber || "—"}</Badge></TableCell>
+                        <TableCell className="font-medium">{quote.clientName || "Cliente não identificado"}</TableCell>
+                        <TableCell>{formatDate(quote.date || "")}</TableCell>
+                        <TableCell>{statusBadge(quote.status)}</TableCell>
+                        <TableCell className="text-right font-semibold text-primary">{formatCurrency(quote.total || 0)}</TableCell>
+                        <TableCell>{actions(quote)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
 
-      {/* Delete Confirmation Dialog */}
-      <Dialog open={deleteId !== null} onOpenChange={() => setDeleteId(null)}>
+      {!loading && totalPages > 1 && (
+        <nav className="flex items-center justify-between gap-3" aria-label="Paginação de orçamentos">
+          <Button variant="outline" disabled={page <= 1} onClick={() => setPage((current) => current - 1)}>Anterior</Button>
+          <span className="text-sm text-muted-foreground">Página {page} de {totalPages}</span>
+          <Button variant="outline" disabled={page >= totalPages} onClick={() => setPage((current) => current + 1)}>Próxima</Button>
+        </nav>
+      )}
+
+      <Dialog open={deleteId !== null} onOpenChange={(open) => !open && setDeleteId(null)}>
         <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Confirmar Exclusão</DialogTitle>
-            <DialogDescription>
-              Tem certeza que deseja excluir este orçamento? Esta ação não pode
-              ser desfeita.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteId(null)}>
-              Cancelar
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={handleDelete}
-              disabled={deleting}
-            >
-              {deleting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Excluindo...
-                </>
-              ) : (
-                "Excluir"
-              )}
-            </Button>
-          </DialogFooter>
+          <DialogHeader><DialogTitle>Confirmar exclusão</DialogTitle><DialogDescription>Esta ação removerá permanentemente o orçamento e seus itens.</DialogDescription></DialogHeader>
+          <DialogFooter><Button variant="outline" onClick={() => setDeleteId(null)}>Cancelar</Button><Button variant="destructive" onClick={() => void handleDelete()} disabled={deleting}>{deleting && <Loader2 className="size-4 animate-spin" />} Excluir</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* PDF Preview */}
-      {pdfQuote && (
-        <QuotePreview
-          client={pdfQuote.client}
-          quote={pdfQuote.quote}
-          onClose={() => setPdfQuote(null)}
-        />
-      )}
+      {pdfQuote && <QuotePreview client={pdfQuote.client} quote={pdfQuote.quote} onClose={() => setPdfQuote(null)} />}
     </div>
   );
 }

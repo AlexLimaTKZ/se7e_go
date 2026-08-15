@@ -3,29 +3,29 @@
 import { useTheme } from "next-themes";
 import { Sun, Moon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
+
+const emptySubscribe = () => () => undefined;
 
 export function ThemeToggle() {
   const { theme, setTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
+  const mounted = useSyncExternalStore(emptySubscribe, () => true, () => false);
 
-  useEffect(() => setMounted(true), []);
-
-  if (!mounted) return <div className="h-9 w-9" />;
+  if (!mounted) return <div className="size-11" aria-hidden="true" />;
 
   return (
     <Button
       variant="ghost"
       size="icon"
       onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-      className="text-muted-foreground hover:text-foreground"
+      className="size-11 text-muted-foreground hover:text-foreground"
+      aria-label="Alternar tema"
     >
       {theme === "dark" ? (
         <Sun className="h-5 w-5" />
       ) : (
         <Moon className="h-5 w-5" />
       )}
-      <span className="sr-only">Alternar tema</span>
     </Button>
   );
 }
