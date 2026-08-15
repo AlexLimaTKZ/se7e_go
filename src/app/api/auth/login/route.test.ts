@@ -65,10 +65,11 @@ describe("POST /api/auth/login", () => {
     expect(cookie).toContain("auth-token=signed-token");
     expect(cookie).toContain("HttpOnly");
     expect(cookie).toContain("SameSite=lax");
+    expect(rateLimit.getRateLimitStatus).toHaveBeenCalledOnce();
     expect(rateLimit.resetLoginAttempts).toHaveBeenCalledOnce();
   });
 
-  it("accepts a correct password even when the shared IP is already rate limited", async () => {
+  it("rejects a blocked IP before checking the credential", async () => {
     auth.passwordMatches.mockResolvedValue(true);
     rateLimit.getRateLimitStatus.mockResolvedValue({
       blocked: true,
@@ -77,8 +78,10 @@ describe("POST /api/auth/login", () => {
 
     const response = await POST(loginRequest(JSON.stringify({ password: "correta" })));
 
-    expect(response.status).toBe(200);
-    expect(response.headers.get("set-cookie")).toContain("auth-token=signed-token");
+    expect(response.status).toBe(429);
+    expect(response.headers.get("set-cookie")).toBeNull();
+    expect(auth.passwordMatches).not.toHaveBeenCalled();
+    expect(rateLimit.registerFailedLogin).not.toHaveBeenCalled();
   });
 
   it("does not make a correct login depend on rate-limit storage availability", async () => {

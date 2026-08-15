@@ -1,5 +1,25 @@
-import { sqliteTable, text, integer, real } from "drizzle-orm/sqlite-core";
-import { relations } from "drizzle-orm";
+import {
+  check,
+  customType,
+  integer,
+  real,
+  sqliteTable,
+  text,
+} from "drizzle-orm/sqlite-core";
+import { relations, sql } from "drizzle-orm";
+import { centsToMoney, moneyToCents } from "./money";
+
+const money = customType<{ data: number; driverData: number }>({
+  dataType() {
+    return "integer";
+  },
+  toDriver(value) {
+    return moneyToCents(value);
+  },
+  fromDriver(value) {
+    return centsToMoney(value);
+  },
+});
 
 export const clients = sqliteTable("clients", {
   id: integer("id").primaryKey({ autoIncrement: true }),
@@ -8,21 +28,30 @@ export const clients = sqliteTable("clients", {
   phone: text("phone"),
 });
 
-export const quotes = sqliteTable("quotes", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  quoteNumber: text("quote_number"),
-  clientId: integer("client_id").references(() => clients.id),
-  date: text("date"),
-  deliveryDate: text("delivery_date"),
-  validUntil: text("valid_until"),
-  total: real("total"),
-  status: text("status").default("rascunho"),
-  paymentConditions: text("payment_conditions"),
-  discount: real("discount"),
-  notes: text("notes"),
-  createdAt: text("created_at"),
-  updatedAt: text("updated_at"),
-});
+export const quotes = sqliteTable(
+  "quotes",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    quoteNumber: text("quote_number").notNull().unique(),
+    clientId: integer("client_id").references(() => clients.id),
+    date: text("date").notNull(),
+    deliveryDate: text("delivery_date"),
+    validUntil: text("valid_until"),
+    total: money("total").notNull().default(0),
+    status: text("status").notNull().default("rascunho"),
+    paymentConditions: text("payment_conditions"),
+    discount: money("discount").notNull().default(0),
+    notes: text("notes"),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (table) => [
+    check(
+      "quotes_status_check",
+      sql`${table.status} in ('rascunho', 'enviado', 'aprovado', 'recusado', 'concluido')`,
+    ),
+  ],
+);
 
 export const quoteItems = sqliteTable("quote_items", {
   id: integer("id").primaryKey({ autoIncrement: true }),
@@ -36,9 +65,9 @@ export const quoteItems = sqliteTable("quote_items", {
   glass: text("glass"),
   aluminumColor: text("aluminum_color"),
   hardwareColor: text("hardware_color"),
-  quantity: integer("quantity"),
-  unitPrice: real("unit_price"),
-  totalPrice: real("total_price"),
+  quantity: integer("quantity").notNull().default(1),
+  unitPrice: money("unit_price"),
+  totalPrice: money("total_price").notNull().default(0),
 });
 
 export const quoteItemDimensions = sqliteTable("quote_item_dimensions", {
@@ -49,9 +78,9 @@ export const quoteItemDimensions = sqliteTable("quote_item_dimensions", {
   label: text("label"),
   width: real("width"),
   height: real("height"),
-  quantity: integer("quantity").default(1),
-  unitPrice: real("unit_price"),
-  totalPrice: real("total_price"),
+  quantity: integer("quantity").notNull().default(1),
+  unitPrice: money("unit_price"),
+  totalPrice: money("total_price").notNull().default(0),
 });
 
 export const notes = sqliteTable("notes", {

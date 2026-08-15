@@ -3,7 +3,8 @@ import { createSessionToken, verifySessionToken } from "./security/auth-token";
 const encoder = new TextEncoder();
 
 function getSessionSecret(): string | null {
-  return process.env.AUTH_SECRET || process.env.APP_PASSWORD || null;
+  const secret = process.env.AUTH_SECRET;
+  return secret && secret.length > 0 ? secret : null;
 }
 
 async function digest(value: string): Promise<Uint8Array> {
@@ -27,7 +28,7 @@ export async function passwordMatches(candidate: string): Promise<boolean> {
 
 export async function createAuthToken(): Promise<string> {
   const secret = getSessionSecret();
-  if (!secret) throw new Error("APP_PASSWORD ou AUTH_SECRET nao foi configurado.");
+  if (!secret) throw new Error("AUTH_SECRET nao foi configurado.");
   return createSessionToken(secret);
 }
 

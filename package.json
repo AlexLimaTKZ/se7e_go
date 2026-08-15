@@ -7,8 +7,12 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "db:push": "drizzle-kit push",
+    "db:harden": "node scripts/harden-database.mjs",
+    "check": "npm test && npm run lint && npm run typecheck && npm run build"
   },
   "dependencies": {
     "@base-ui/react": "^1.3.0",
