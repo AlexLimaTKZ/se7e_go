@@ -29,10 +29,10 @@ export async function GET(
     }
 
     const token = await createQuoteShareToken(quoteId, secret);
-    const shareUrl = new URL(`/api/shared-quotes/${quoteId}`, request.nextUrl.origin);
+    const shareUrl = new URL(`/compartilhar/orcamento/${quoteId}`, request.nextUrl.origin);
     shareUrl.searchParams.set("token", token);
 
-    const message = `${buildQuoteShareText(quote.client.name, quote.quoteNumber)}\n\n📄 Visualizar orçamento em PDF:\n${shareUrl.toString()}`;
+    const message = `${buildQuoteShareText(quote.client.name, quote.quoteNumber)}\n\n📄 Visualizar orçamento:\n${shareUrl.toString()}`;
     const whatsAppUrl = buildWhatsAppUrl(quote.client.phone, message, {
       preferLegacyBrazilianMobile: isAppleMobileDevice({
         userAgent: request.headers.get("user-agent") || "",
