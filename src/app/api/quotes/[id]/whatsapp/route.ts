@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { buildQuoteShareText, buildWhatsAppUrl, isAppleMobileDevice } from "@/lib/pdf/share";
+import {
+  buildQuoteShareText,
+  buildWhatsAppUrl,
+  isAppleMobileDevice,
+  isMobileDevice,
+} from "@/lib/pdf/share";
 import { loadSavedQuoteInput } from "@/lib/quotes/saved-quote";
 import { createQuoteShareCode } from "@/lib/quotes/share-token";
 
@@ -32,10 +37,10 @@ export async function GET(
     const shareUrl = new URL(`/o/${shareCode}`, request.nextUrl.origin);
 
     const message = `${buildQuoteShareText(quote.client.name, quote.quoteNumber)}\n\n📄 Visualizar orçamento:\n${shareUrl.toString()}`;
+    const userAgent = request.headers.get("user-agent") || "";
     const whatsAppUrl = buildWhatsAppUrl(quote.client.phone, message, {
-      preferLegacyBrazilianMobile: isAppleMobileDevice({
-        userAgent: request.headers.get("user-agent") || "",
-      }),
+      preferLegacyBrazilianMobile: isAppleMobileDevice({ userAgent }),
+      useWeb: !isMobileDevice({ userAgent }),
     });
 
     if (!whatsAppUrl) {
