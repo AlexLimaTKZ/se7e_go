@@ -44,17 +44,18 @@ const styles = StyleSheet.create({
   clientName: { fontFamily: "Helvetica-Bold", marginBottom: 3, textTransform: "uppercase" },
   sectionTitle: { fontSize: 12, fontFamily: "Helvetica-Bold", marginBottom: 9 },
   item: { borderBottomWidth: 0.6, borderBottomColor: "#cccccc", paddingBottom: 10, marginBottom: 12 },
+  itemLayout: { flexDirection: "row", alignItems: "flex-start", gap: 14 },
+  itemMain: { flexGrow: 1, flexShrink: 1, flexBasis: 0 },
   itemTitle: { fontSize: 9.5, fontFamily: "Helvetica-Bold", marginBottom: 6, textTransform: "uppercase" },
   itemBody: { flexDirection: "row", gap: 10 },
   itemImage: { width: 72, height: 72, objectFit: "contain", borderWidth: 0.5, borderColor: "#dddddd" },
   itemDetails: { flexGrow: 1, flexShrink: 1, flexBasis: 0 },
   detailLine: { marginBottom: 2 },
-  dimensionRow: { flexDirection: "row", alignItems: "flex-start", marginBottom: 2 },
-  dimensionLabel: { flexGrow: 1, flexShrink: 1, paddingRight: 10 },
-  value: { width: 112, flexShrink: 0, fontFamily: "Helvetica-Bold", textAlign: "right" },
-  itemPrices: { marginTop: 5, alignItems: "flex-end" },
-  priceLine: { width: 170, marginBottom: 2, textAlign: "right" },
-  itemTotal: { width: 170, marginTop: 2, fontFamily: "Helvetica-Bold", textAlign: "right" },
+  dimensionRow: { marginBottom: 2 },
+  dimensionLabel: { flexShrink: 1 },
+  itemPrices: { width: 190, flexShrink: 0, alignItems: "flex-end" },
+  priceLine: { width: "100%", marginBottom: 2, textAlign: "right" },
+  itemTotal: { width: "100%", marginTop: 2, fontFamily: "Helvetica-Bold", textAlign: "right" },
   summary: { borderTopWidth: 1.5, borderTopColor: "#111111", paddingTop: 10, marginTop: 5 },
   summaryRow: { flexDirection: "row", justifyContent: "space-between", gap: 20 },
   conditions: { flexGrow: 1, flexShrink: 1 },
@@ -76,6 +77,11 @@ function money(value: number): string {
 
 function measurement(value: number | null): string {
   return value === null ? "—" : String(value).replace(".", ",");
+}
+
+function dimensionPriceLabel(label: string, index: number): string {
+  const normalizedLabel = label.trim();
+  return normalizedLabel || `AMBIENTE ${index + 1}`;
 }
 
 async function prepareItemImages(items: ParsedQuoteInput["items"]): Promise<Array<PdfImageSource | null>> {
@@ -133,36 +139,46 @@ function QuotePdfDocument({ quote, logo, itemImages }: QuotePdfDocumentProps) {
         <Text style={styles.sectionTitle}>PRODUTOS</Text>
         {quote.items.map((item, index) => (
           <View key={`${index}-${item.title}`} style={styles.item}>
-            <Text style={styles.itemTitle} minPresenceAhead={55}>ITEM {index + 1} - {item.title}</Text>
-            <View style={styles.itemBody}>
-              {itemImages[index] ? <PdfImage src={itemImages[index]!} style={styles.itemImage} /> : null}
-              <View style={styles.itemDetails}>
+            <View style={styles.itemLayout} minPresenceAhead={55}>
+              <View style={styles.itemMain}>
+                <Text style={styles.itemTitle}>ITEM {index + 1} - {item.title}</Text>
+                <View style={styles.itemBody}>
+                  {itemImages[index] ? <PdfImage src={itemImages[index]!} style={styles.itemImage} /> : null}
+                  <View style={styles.itemDetails}>
+                    {item.dimensions.length > 0 ? (
+                      item.dimensions.map((dimension, dimensionIndex) => (
+                        <View key={`${dimensionIndex}-${dimension.label}`} style={styles.dimensionRow}>
+                          <Text style={styles.dimensionLabel}>
+                            • {measurement(dimension.width)} x {measurement(dimension.height)}
+                            {dimension.label ? ` — ${dimension.label}` : ""}
+                            {dimension.quantity > 1 ? ` (×${dimension.quantity})` : ""}
+                          </Text>
+                        </View>
+                      ))
+                    ) : (
+                      <>
+                        <Text style={styles.detailLine}>LARGURA: {measurement(item.width)}  ALTURA: {measurement(item.height)}</Text>
+                        {item.glass ? <Text style={styles.detailLine}>COR DO VIDRO: {item.glass}</Text> : null}
+                        {item.aluminumColor ? <Text style={styles.detailLine}>COR DOS ALUMÍNIOS: {item.aluminumColor}</Text> : null}
+                        {item.hardwareColor ? <Text style={styles.detailLine}>COR DAS FERRAGENS: {item.hardwareColor}</Text> : null}
+                        <Text style={styles.detailLine}>QUANTIDADE: {item.quantity}</Text>
+                      </>
+                    )}
+                  </View>
+                </View>
+              </View>
+
+              <View style={styles.itemPrices}>
                 {item.dimensions.length > 0 ? (
                   item.dimensions.map((dimension, dimensionIndex) => (
-                    <View key={`${dimensionIndex}-${dimension.label}`} style={styles.dimensionRow}>
-                      <Text style={styles.dimensionLabel}>
-                        • {measurement(dimension.width)} x {measurement(dimension.height)}
-                        {dimension.label ? ` — ${dimension.label}` : ""}
-                        {dimension.quantity > 1 ? ` (×${dimension.quantity})` : ""}
-                      </Text>
-                      <Text style={styles.value}>{money(dimension.totalPrice)}</Text>
-                    </View>
+                    <Text key={`${dimensionIndex}-${dimension.label}-price`} style={styles.priceLine}>
+                      {dimensionPriceLabel(dimension.label, dimensionIndex)}: {money(dimension.totalPrice)}
+                    </Text>
                   ))
-                ) : (
-                  <>
-                    <Text style={styles.detailLine}>LARGURA: {measurement(item.width)}  ALTURA: {measurement(item.height)}</Text>
-                    {item.glass ? <Text style={styles.detailLine}>COR DO VIDRO: {item.glass}</Text> : null}
-                    {item.aluminumColor ? <Text style={styles.detailLine}>COR DOS ALUMÍNIOS: {item.aluminumColor}</Text> : null}
-                    {item.hardwareColor ? <Text style={styles.detailLine}>COR DAS FERRAGENS: {item.hardwareColor}</Text> : null}
-                    <Text style={styles.detailLine}>QUANTIDADE: {item.quantity}</Text>
-                  </>
-                )}
-                <View style={styles.itemPrices}>
-                  {item.dimensions.length === 0 && item.unitPrice !== null && item.unitPrice > 0 ? (
-                    <Text style={styles.priceLine}>VALOR UNITÁRIO: {money(item.unitPrice)}</Text>
-                  ) : null}
-                  <Text style={styles.itemTotal}>VALOR TOTAL: {money(item.totalPrice)}</Text>
-                </View>
+                ) : item.unitPrice !== null && item.unitPrice > 0 ? (
+                  <Text style={styles.priceLine}>VALOR UNITÁRIO: {money(item.unitPrice)}</Text>
+                ) : null}
+                <Text style={styles.itemTotal}>VALOR TOTAL: {money(item.totalPrice)}</Text>
               </View>
             </View>
           </View>
