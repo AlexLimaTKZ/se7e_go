@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { MotionConfig, motion } from "framer-motion";
@@ -54,10 +54,6 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
   const [loading, setLoading] = useState(false);
   const [passwordVisible, setPasswordVisible] = useState(false);
 
-  useEffect(() => {
-    router.prefetch(redirectTo);
-  }, [redirectTo, router]);
-
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
@@ -71,8 +67,10 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
       });
 
       if (response.ok) {
+        // Do not prefetch protected routes before authentication. A prefetch made
+        // without the auth cookie can cache the /login redirect and immediately
+        // send a successfully authenticated user back to this page.
         router.replace(redirectTo);
-        router.refresh();
         return;
       }
 

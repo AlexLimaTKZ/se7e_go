@@ -90,9 +90,11 @@ describe("LoginForm", () => {
     expect(input.getAttribute("aria-describedby")).toBe("password-error");
   });
 
-  it("returns to the sanitized protected destination after login", async () => {
+  it("navigates only after authentication without prefetching a protected route", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => Response.json({ success: true })));
     render(<LoginForm redirectTo="/orcamentos?status=aberto" />);
+
+    expect(navigation.prefetch).not.toHaveBeenCalled();
 
     fireEvent.change(screen.getByLabelText("Senha de acesso"), {
       target: { value: "correta" },
@@ -101,8 +103,8 @@ describe("LoginForm", () => {
 
     await waitFor(() => {
       expect(navigation.replace).toHaveBeenCalledWith("/orcamentos?status=aberto");
-      expect(navigation.refresh).toHaveBeenCalledOnce();
     });
-    expect(navigation.prefetch).toHaveBeenCalledWith("/orcamentos?status=aberto");
+    expect(navigation.prefetch).not.toHaveBeenCalled();
+    expect(navigation.refresh).not.toHaveBeenCalled();
   });
 });
