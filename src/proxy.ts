@@ -8,6 +8,7 @@ export async function proxy(request: NextRequest) {
     /\.(png|jpg|jpeg|gif|svg|ico|webp|woff|woff2|ttf|eot|css|js|webmanifest)$/iu;
   const isPublic =
     publicPaths.has(pathname) ||
+    pathname.startsWith("/api/shared-quotes/") ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/icons") ||
     staticFileExtensions.test(pathname) ||

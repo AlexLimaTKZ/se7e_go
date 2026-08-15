@@ -35,7 +35,7 @@ describe("QuotesListPage status filter", () => {
     });
   });
 
-  it("renders the WhatsApp action as PDF sharing from the quote list", async () => {
+  it("renders the WhatsApp action as a direct client-chat link", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => Response.json({
       items: [{
         id: 1,
@@ -52,10 +52,11 @@ describe("QuotesListPage status filter", () => {
 
     render(<QuotesListPage />);
 
-    const buttons = await screen.findAllByRole("button", {
+    const links = await screen.findAllByRole("link", {
       name: "Compartilhar orçamento no WhatsApp",
     });
-    expect(buttons.length).toBeGreaterThan(0);
-    expect(buttons[0].getAttribute("title")).toBe("WhatsApp + PDF");
+    expect(links.length).toBeGreaterThan(0);
+    expect(links[0].getAttribute("href")).toBe("/api/quotes/1/whatsapp");
+    expect(links[0].getAttribute("title")).toBe("WhatsApp + link do PDF");
   });
 });
