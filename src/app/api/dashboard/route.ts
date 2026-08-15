@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { desc, eq, gte, inArray, sql } from "drizzle-orm";
 import { getDb } from "@/lib/db";
+import { centsToMoney } from "@/lib/db/money";
 import { clients, quotes } from "@/lib/db/schema";
 
 export const dynamic = "force-dynamic";
@@ -62,14 +63,14 @@ export async function GET() {
     ]);
 
     const metrics = metricRows[0];
-    const monthlyRevenue = Number(metrics?.monthlyRevenue ?? 0);
-    const lastMonthRevenue = Number(metrics?.lastMonthRevenue ?? 0);
+    const monthlyRevenue = centsToMoney(Number(metrics?.monthlyRevenue ?? 0));
+    const lastMonthRevenue = centsToMoney(Number(metrics?.lastMonthRevenue ?? 0));
     const revenueGrowth =
       lastMonthRevenue > 0
         ? ((monthlyRevenue - lastMonthRevenue) / lastMonthRevenue) * 100
         : 0;
     const revenueByMonth = new Map(
-      revenueRows.map((row) => [row.month, Number(row.value ?? 0)]),
+      revenueRows.map((row) => [row.month, centsToMoney(Number(row.value ?? 0))]),
     );
 
     return NextResponse.json({

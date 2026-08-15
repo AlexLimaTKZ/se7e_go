@@ -13,15 +13,20 @@ Aplicação Next.js para criar, editar, duplicar, pesquisar e imprimir orçament
 1. Copie `.env.example` para `.env.local`.
 2. Preencha `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, `BLOB_READ_WRITE_TOKEN`, `APP_PASSWORD` e `AUTH_SECRET`.
 3. Use uma senha exclusiva em `APP_PASSWORD`. Não existe senha padrão no código.
-4. Gere um segredo aleatório longo para `AUTH_SECRET`; ele assina sessões com expiração.
-5. Instale e prepare o banco:
+4. Gere um segredo aleatório independente, com pelo menos 32 bytes, para `AUTH_SECRET`. Ele é obrigatório e é usado apenas para assinar as sessões.
+5. Instale as dependências:
 
 ```bash
 npm install
-npx drizzle-kit push
 ```
 
-6. Inicie em desenvolvimento:
+6. Para um banco novo, crie o schema atual:
+
+```bash
+npm run db:push
+```
+
+7. Inicie em desenvolvimento:
 
 ```bash
 npm run dev
@@ -29,14 +34,41 @@ npm run dev
 
 Acesse [http://localhost:3000](http://localhost:3000).
 
+## Atualização de bancos existentes
+
+A versão endurecida armazena valores monetários como **centavos inteiros**, exige número de orçamento único e aplica constraints aos campos críticos.
+
+Antes de publicar esta versão sobre um banco criado pelo schema antigo:
+
+1. faça um backup do banco Turso;
+2. aponte `.env.local` para o banco correto;
+3. execute a migração idempotente;
+4. sincronize o schema Drizzle.
+
+```bash
+npm run db:harden
+npm run db:push
+```
+
+`db:harden` interrompe antes de alterar os dados se encontrar número de orçamento ausente ou duplicado. Não publique a versão nova da aplicação antes de concluir essa migração no banco de produção.
+
 ## Verificações
 
 ```bash
 npm test
 npm run lint
+npm run typecheck
 npm run build
 npm audit
 ```
+
+Ou execute os quatro checks de qualidade de uma vez:
+
+```bash
+npm run check
+```
+
+O workflow `.github/workflows/ci.yml` executa testes, lint, typecheck e build em pull requests e pushes para `main`.
 
 ## Comportamento móvel
 
@@ -52,6 +84,8 @@ O rascunho local ajuda na recuperação após interrupções, mas só o botão *
 ## Segurança
 
 - sessão assinada por HMAC, com nonce e expiração;
+- `AUTH_SECRET` obrigatório e independente de `APP_PASSWORD`;
+- IPs bloqueados pelo rate limit são rejeitados antes de qualquer verificação de senha;
 - limitação de tentativas de login persistida no Turso;
 - proxy de imagens restrito ao hostname público exato do Vercel Blob, sem encaminhar tokens;
 - upload limitado a 10 MB e validado por MIME e assinatura do arquivo;

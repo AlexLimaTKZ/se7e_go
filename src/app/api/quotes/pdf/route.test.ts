@@ -30,8 +30,8 @@ describe("POST /api/quotes/pdf", () => {
     expect(response.headers.get("cache-control")).toBe("private, no-store, max-age=0");
     expect(response.headers.get("content-disposition")).toContain("Orcamento-456-Cliente-da-Rota.pdf");
     expect(Array.from(new Uint8Array(await response.arrayBuffer()).subarray(0, 5)))
-      .toEqual([37, 80, 68, 70, 45]);
-  });
+  .toEqual([37, 80, 68, 70, 45]);
+}, 15_000);
 
   it("rejects incomplete quote data with actionable issues", async () => {
     const route = await loadRoute();

@@ -73,6 +73,20 @@ export async function POST(request: Request): Promise<Response> {
       return jsonResponse({ error: parsed.error }, 400);
     }
 
+    try {
+      const status = await getRateLimitStatus(ip);
+      if (status.blocked) {
+        return jsonResponse(
+          { error: status.message || "Muitas tentativas. Tente novamente mais tarde." },
+          429,
+        );
+      }
+    } catch (error) {
+      // Authentication remains available if the limiter storage has a transient outage,
+      // but a blocked IP can no longer test credentials when the limiter is healthy.
+      console.warn("Não foi possível verificar o limite de tentativas de login:", error);
+    }
+
     if (await passwordMatches(parsed.password)) {
       void resetLoginAttempts(ip).catch((error: unknown) => {
         console.warn("Não foi possível limpar as tentativas de login:", error);
@@ -89,14 +103,6 @@ export async function POST(request: Request): Promise<Response> {
       });
 
       return response;
-    }
-
-    const status = await getRateLimitStatus(ip);
-    if (status.blocked) {
-      return jsonResponse(
-        { error: status.message || "Muitas tentativas. Tente novamente mais tarde." },
-        429,
-      );
     }
 
     const failStatus = await registerFailedLogin(ip);
