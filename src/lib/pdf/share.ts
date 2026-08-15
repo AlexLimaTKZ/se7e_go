@@ -3,6 +3,16 @@ export interface PdfShareNavigator {
   canShare?: (data?: ShareData) => boolean;
 }
 
+interface PlatformNavigator {
+  userAgent?: string;
+  platform?: string;
+  maxTouchPoints?: number;
+}
+
+interface WhatsAppUrlOptions {
+  preferLegacyBrazilianMobile?: boolean;
+}
+
 function safeFilenamePart(value: string, fallback: string): string {
   const normalized = value
     .normalize("NFD")
@@ -26,17 +36,52 @@ export function buildQuoteShareText(clientName: string, quoteNumber: string): st
 }
 
 export function normalizeBrazilianWhatsAppPhone(value: string): string {
-  const digits = value.replace(/\D/gu, "");
-  if (!digits) return "";
-  return digits.startsWith("55") && (digits.length === 12 || digits.length === 13)
-    ? digits
-    : `55${digits}`;
+  let digits = value.replace(/\D/gu, "");
+  if (digits.startsWith("00")) digits = digits.slice(2);
+  if (digits.startsWith("0") && (digits.length === 11 || digits.length === 12)) {
+    digits = digits.slice(1);
+  }
+  if (digits.startsWith("55") && (digits.length === 12 || digits.length === 13)) {
+    return digits;
+  }
+  return digits.length === 10 || digits.length === 11 ? `55${digits}` : "";
 }
 
-export function buildWhatsAppUrl(phone: string, message: string): string | null {
-  const normalizedPhone = normalizeBrazilianWhatsAppPhone(phone);
+const EARLY_NINTH_DIGIT_AREAS = new Set([
+  "11", "12", "13", "14", "15", "16", "17", "18", "19",
+  "21", "22", "24", "27", "28",
+]);
+
+function legacyBrazilianWhatsAppPhone(phone: string): string {
+  if (phone.length !== 13 || !phone.startsWith("55")) return phone;
+  const areaCode = phone.slice(2, 4);
+  const subscriber = phone.slice(4);
+  if (subscriber.length !== 9 || !subscriber.startsWith("9") || EARLY_NINTH_DIGIT_AREAS.has(areaCode)) {
+    return phone;
+  }
+  return `55${areaCode}${subscriber.slice(1)}`;
+}
+
+export function buildWhatsAppUrl(
+  phone: string,
+  message: string,
+  options: WhatsAppUrlOptions = {},
+): string | null {
+  const canonicalPhone = normalizeBrazilianWhatsAppPhone(phone);
+  const normalizedPhone = options.preferLegacyBrazilianMobile
+    ? legacyBrazilianWhatsAppPhone(canonicalPhone)
+    : canonicalPhone;
   if (!normalizedPhone) return null;
   return `https://wa.me/${normalizedPhone}?text=${encodeURIComponent(message)}`;
+}
+
+export function isAppleMobileDevice(value: PlatformNavigator): boolean {
+  return /iPhone|iPad|iPod/iu.test(value.userAgent || "") ||
+    (value.platform === "MacIntel" && (value.maxTouchPoints || 0) > 1);
+}
+
+export function buildPdfFileShareData(file: File): ShareData {
+  return { files: [file] };
 }
 
 export function canSharePdfFile(

@@ -1,4 +1,5 @@
 import sharp from "sharp";
+import { get } from "@vercel/blob";
 import { isAllowedPublicBlobUrl } from "@/lib/security/blob-url";
 
 const MAX_SOURCE_IMAGE_BYTES = 10 * 1024 * 1024;
@@ -32,16 +33,35 @@ export async function fetchOptimizedPdfImage(value: string): Promise<PdfImageSou
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), IMAGE_TIMEOUT_MS);
   try {
-    const response = await fetch(value, {
-      cache: "no-store",
-      redirect: "error",
-      signal: controller.signal,
-    });
-    if (!response.ok || !response.headers.get("content-type")?.startsWith("image/")) return null;
+    let source: Buffer;
+    if (isAllowedPublicBlobUrl(value)) {
+      const result = await get(value, {
+        access: "public",
+        abortSignal: controller.signal,
+      });
+      if (
+        !result ||
+        result.statusCode !== 200 ||
+        !result.blob.contentType.toLowerCase().startsWith("image/") ||
+        result.blob.size > MAX_SOURCE_IMAGE_BYTES
+      ) {
+        return null;
+      }
+      source = Buffer.from(await new Response(result.stream).arrayBuffer());
+    } else {
+      const response = await fetch(value, {
+        cache: "no-store",
+        redirect: "follow",
+        signal: controller.signal,
+      });
+      if (!response.ok || !response.headers.get("content-type")?.toLowerCase().startsWith("image/")) {
+        return null;
+      }
+      const contentLength = Number(response.headers.get("content-length") || 0);
+      if (contentLength > MAX_SOURCE_IMAGE_BYTES) return null;
+      source = Buffer.from(await response.arrayBuffer());
+    }
 
-    const contentLength = Number(response.headers.get("content-length") || 0);
-    if (contentLength > MAX_SOURCE_IMAGE_BYTES) return null;
-    const source = Buffer.from(await response.arrayBuffer());
     if (source.byteLength === 0 || source.byteLength > MAX_SOURCE_IMAGE_BYTES) return null;
 
     const data = await sharp(source, { animated: false })

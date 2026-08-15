@@ -65,14 +65,6 @@ export async function POST(request: Request): Promise<Response> {
       request.headers.get("x-real-ip")?.trim() ||
       "unknown_ip";
 
-    const status = await getRateLimitStatus(ip);
-    if (status.blocked) {
-      return jsonResponse(
-        { error: status.message || "Muitas tentativas. Tente novamente mais tarde." },
-        429,
-      );
-    }
-
     const body = await readJsonBody(request);
     if (!body.ok) return body.response;
 
@@ -81,31 +73,41 @@ export async function POST(request: Request): Promise<Response> {
       return jsonResponse({ error: parsed.error }, 400);
     }
 
-    if (!(await passwordMatches(parsed.password))) {
-      const failStatus = await registerFailedLogin(ip);
-      if (failStatus.blocked) {
-        return jsonResponse(
-          { error: failStatus.message || "Muitas tentativas. Tente novamente mais tarde." },
-          429,
-        );
-      }
+    if (await passwordMatches(parsed.password)) {
+      void resetLoginAttempts(ip).catch((error: unknown) => {
+        console.warn("Não foi possível limpar as tentativas de login:", error);
+      });
+      const token = await createAuthToken();
+      const response = jsonResponse({ success: true });
 
-      return jsonResponse({ error: "Senha incorreta." }, 401);
+      response.cookies.set("auth-token", token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        maxAge: 60 * 60 * 24 * 30,
+        path: "/",
+      });
+
+      return response;
     }
 
-    await resetLoginAttempts(ip);
-    const token = await createAuthToken();
-    const response = jsonResponse({ success: true });
+    const status = await getRateLimitStatus(ip);
+    if (status.blocked) {
+      return jsonResponse(
+        { error: status.message || "Muitas tentativas. Tente novamente mais tarde." },
+        429,
+      );
+    }
 
-    response.cookies.set("auth-token", token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 60 * 60 * 24 * 30,
-      path: "/",
-    });
+    const failStatus = await registerFailedLogin(ip);
+    if (failStatus.blocked) {
+      return jsonResponse(
+        { error: failStatus.message || "Muitas tentativas. Tente novamente mais tarde." },
+        429,
+      );
+    }
 
-    return response;
+    return jsonResponse({ error: "Senha incorreta." }, 401);
   } catch (error) {
     console.error("Erro ao autenticar:", error);
     return jsonResponse({ error: "Erro interno do servidor." }, 500);

@@ -121,9 +121,7 @@ export function QuotePreview({ client, quote, onClose }: QuotePreviewProps) {
           <h2 style={{ textTransform: "uppercase", fontSize: "14pt", fontWeight: "bold", marginBottom: "15px" }}>PRODUTOS</h2>
 
           {quote.items.map((item, index) => {
-            const imageUrl = item.image_url && item.image_url.includes(".blob.vercel-storage.com")
-              ? `/api/images/proxy?url=${encodeURIComponent(item.image_url)}`
-              : item.image_url;
+            const imageUrl = item.image_url;
 
             return (
             <div
@@ -138,7 +136,9 @@ export function QuotePreview({ client, quote, onClose }: QuotePreviewProps) {
               <div data-pdf-item-row style={{ display: "flex", alignItems: "flex-start", gap: "20px", paddingBottom: "15px", borderBottom: "1px solid #ccc" }}>
                 {imageUrl && (
                   <div data-pdf-item-image style={{ flexBasis: "120px", flexShrink: 0, overflow: "hidden" }}>
-                    <Image src={imageUrl} alt={item.title} width={120} height={120} unoptimized style={{ width: "120px", height: "120px", objectFit: "contain", border: "1px solid #eee" }} />
+                    {/* O carregamento eager evita a falha do lazy loading do Safari dentro do modal rolável. */}
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={imageUrl} alt={item.title} width={120} height={120} loading="eager" decoding="async" style={{ width: "120px", height: "120px", objectFit: "contain", border: "1px solid #eee" }} />
                   </div>
                 )}
                 <div data-pdf-item-details style={{ flex: 1, display: "flex", justifyContent: "space-between" }}>

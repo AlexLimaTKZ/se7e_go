@@ -23,6 +23,39 @@ describe("PDF sharing helpers", () => {
       .toBe("5586999991234");
     expect(helpers.normalizeBrazilianWhatsAppPhone("+55 (86) 99999-1234"))
       .toBe("5586999991234");
+    expect(helpers.normalizeBrazilianWhatsAppPhone("086 99999-1234"))
+      .toBe("5586999991234");
+  });
+
+  it("can use the legacy WhatsApp identifier for Brazilian iPhones outside early ninth-digit areas", async () => {
+    const helpers = await loadModule();
+    expect(helpers).not.toBeNull();
+    if (!helpers) return;
+
+    expect(helpers.buildWhatsAppUrl("(86) 99597-1050", "Mensagem", {
+      preferLegacyBrazilianMobile: true,
+    })).toContain("wa.me/558695971050?");
+    expect(helpers.buildWhatsAppUrl("(86) 99597-1050", "Mensagem"))
+      .toContain("wa.me/5586995971050?");
+  });
+
+  it("detects iPhone and touch-enabled iPad user agents", async () => {
+    const helpers = await loadModule();
+    expect(helpers).not.toBeNull();
+    if (!helpers) return;
+
+    expect(helpers.isAppleMobileDevice({ userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0)", platform: "iPhone", maxTouchPoints: 5 })).toBe(true);
+    expect(helpers.isAppleMobileDevice({ userAgent: "Mozilla/5.0 (Macintosh)", platform: "MacIntel", maxTouchPoints: 5 })).toBe(true);
+    expect(helpers.isAppleMobileDevice({ userAgent: "Mozilla/5.0 (Linux; Android 15)", platform: "Linux armv8l", maxTouchPoints: 5 })).toBe(false);
+  });
+
+  it("builds a file-only native share payload so iOS cannot append a blob URL", async () => {
+    const helpers = await loadModule();
+    expect(helpers).not.toBeNull();
+    if (!helpers) return;
+
+    const file = new File(["pdf"], "orcamento.pdf", { type: "application/pdf" });
+    expect(helpers.buildPdfFileShareData(file)).toEqual({ files: [file] });
   });
 
   it("detects whether the device accepts sharing this PDF file", async () => {

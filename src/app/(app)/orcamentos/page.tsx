@@ -29,7 +29,11 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { buildQuoteShareText, buildWhatsAppUrl } from "@/lib/pdf/share";
+import {
+  buildQuoteShareText,
+  buildWhatsAppUrl,
+  isAppleMobileDevice,
+} from "@/lib/pdf/share";
 import {
   Table,
   TableBody,
@@ -272,7 +276,9 @@ function QuotesListContent() {
 
   const openWhatsApp = (quote: QuoteRow) => {
     const message = buildQuoteShareText(quote.clientName || "Cliente", quote.quoteNumber || "");
-    const url = buildWhatsAppUrl(quote.clientPhone || "", message);
+    const url = buildWhatsAppUrl(quote.clientPhone || "", message, {
+      preferLegacyBrazilianMobile: isAppleMobileDevice(navigator),
+    });
     if (!url) {
       toast.error("Cadastre o celular do cliente antes de abrir o WhatsApp.");
       return;

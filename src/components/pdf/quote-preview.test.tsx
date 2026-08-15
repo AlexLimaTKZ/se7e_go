@@ -53,6 +53,11 @@ describe("QuotePreview PDF actions", () => {
     const share = vi.fn<(data: ShareData) => Promise<void>>(async () => undefined);
     Object.defineProperty(navigator, "share", { configurable: true, value: share });
     Object.defineProperty(navigator, "canShare", { configurable: true, value: vi.fn(() => true) });
+    const writeText = vi.fn(async () => undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
     render(<QuotePreview {...previewProps} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Compartilhar PDF" }));
@@ -61,6 +66,28 @@ describe("QuotePreview PDF actions", () => {
     const shareData = share.mock.calls[0][0] as ShareData;
     expect(shareData.files?.[0].name).toBe("Orcamento-789-Joao-da-Silva.pdf");
     expect(shareData.files?.[0].type).toBe("application/pdf");
+    expect(shareData.text).toBeUndefined();
+    expect(shareData.title).toBeUndefined();
+    expect(shareData.url).toBeUndefined();
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining("orçamento #789"));
+  });
+
+  it("loads public product images eagerly from their permanent URL in the mobile preview", () => {
+    render(<QuotePreview
+      {...previewProps}
+      quote={{
+        ...previewProps.quote,
+        items: [{
+          ...previewProps.quote.items[0],
+          image_url: "https://store.public.blob.vercel-storage.com/catalog/janela.png",
+        }],
+      }}
+    />);
+
+    const image = screen.getByRole("img", { name: "Janela" });
+    expect(image.getAttribute("src"))
+      .toBe("https://store.public.blob.vercel-storage.com/catalog/janela.png");
+    expect(image.getAttribute("loading")).toBe("eager");
   });
 
   it("does not start a duplicate PDF request during Strict Mode preparation", async () => {

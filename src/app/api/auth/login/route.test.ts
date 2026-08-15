@@ -68,6 +68,30 @@ describe("POST /api/auth/login", () => {
     expect(rateLimit.resetLoginAttempts).toHaveBeenCalledOnce();
   });
 
+  it("accepts a correct password even when the shared IP is already rate limited", async () => {
+    auth.passwordMatches.mockResolvedValue(true);
+    rateLimit.getRateLimitStatus.mockResolvedValue({
+      blocked: true,
+      message: "Muitas tentativas. Tente novamente em 15 min.",
+    });
+
+    const response = await POST(loginRequest(JSON.stringify({ password: "correta" })));
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("set-cookie")).toContain("auth-token=signed-token");
+  });
+
+  it("does not make a correct login depend on rate-limit storage availability", async () => {
+    auth.passwordMatches.mockResolvedValue(true);
+    rateLimit.getRateLimitStatus.mockRejectedValue(new Error("database unavailable"));
+    rateLimit.resetLoginAttempts.mockRejectedValue(new Error("database unavailable"));
+
+    const response = await POST(loginRequest(JSON.stringify({ password: "correta" })));
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("set-cookie")).toContain("auth-token=signed-token");
+  });
+
   it("rejects an oversized streamed body without a content-length header", async () => {
     const response = await POST(loginRequest(JSON.stringify({ password: "x".repeat(2048) })));
 

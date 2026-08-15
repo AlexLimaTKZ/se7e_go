@@ -7,9 +7,11 @@ import { Button } from "@/components/ui/button";
 import {
   buildQuotePdfFilename,
   buildQuoteShareText,
+  buildPdfFileShareData,
   buildWhatsAppUrl,
   canSharePdfFile,
   downloadPdfBlob,
+  isAppleMobileDevice,
   isShareActivationError,
   isShareCancellation,
 } from "@/lib/pdf/share";
@@ -24,6 +26,14 @@ interface QuotePdfActionsProps {
 }
 
 type BusyAction = "share" | "download" | null;
+
+function copyShareText(text: string): Promise<boolean> {
+  if (!navigator.clipboard?.writeText) return Promise.resolve(false);
+  return navigator.clipboard.writeText(text).then(
+    () => true,
+    () => false,
+  );
+}
 
 async function readPdfError(response: Response): Promise<string> {
   try {
@@ -46,6 +56,7 @@ export function QuotePdfActions({
   const [preparing, setPreparing] = useState(true);
   const [busyAction, setBusyAction] = useState<BusyAction>(null);
   const [fallbackVisible, setFallbackVisible] = useState(false);
+  const [shareMessageVisible, setShareMessageVisible] = useState(false);
 
   const requestPdf = useCallback((signal?: AbortSignal): Promise<Blob> => {
     if (pdfBlobRef.current) return Promise.resolve(pdfBlobRef.current);
@@ -113,12 +124,13 @@ export function QuotePdfActions({
       const blob = await requestPdf();
       const file = new File([blob], filename, { type: "application/pdf" });
       if (canSharePdfFile(navigator, file)) {
-        await navigator.share({
-          title: `Orçamento ${quote.quote_number}`,
-          text: shareText,
-          files: [file],
-        });
-        toast.success("PDF compartilhado com sucesso.");
+        const copyPromise = copyShareText(shareText);
+        await navigator.share(buildPdfFileShareData(file));
+        const copied = await copyPromise;
+        setShareMessageVisible(true);
+        toast.success(copied
+          ? "PDF compartilhado. A mensagem está copiada para colar no WhatsApp."
+          : "PDF compartilhado. Use a mensagem pronta exibida abaixo.");
       } else {
         downloadPdfBlob(blob, filename);
         setFallbackVisible(true);
@@ -132,7 +144,7 @@ export function QuotePdfActions({
     } finally {
       setBusyAction(null);
     }
-  }, [busyAction, filename, quote.quote_number, requestPdf, shareText]);
+  }, [busyAction, filename, requestPdf, shareText]);
 
   const handleDownload = useCallback(async () => {
     if (busyAction) return;
@@ -149,7 +161,9 @@ export function QuotePdfActions({
   }, [busyAction, filename, requestPdf]);
 
   const handleWhatsApp = useCallback(() => {
-    const url = buildWhatsAppUrl(client.phone, shareText);
+    const url = buildWhatsAppUrl(client.phone, shareText, {
+      preferLegacyBrazilianMobile: isAppleMobileDevice(navigator),
+    });
     if (!url) {
       toast.error("Cadastre o celular do cliente antes de abrir o WhatsApp.");
       return;
@@ -168,6 +182,19 @@ export function QuotePdfActions({
           <span>PDF baixado. Abra o WhatsApp e anexe o arquivo à conversa.</span>
           <Button type="button" size="sm" variant="outline" onClick={handleWhatsApp}>
             <MessageCircle className="size-4" /> Abrir WhatsApp
+          </Button>
+        </div>
+      ) : null}
+
+      {shareMessageVisible ? (
+        <div className="col-span-4 mb-1 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-blue-50 p-2.5 text-xs text-blue-950 sm:mr-auto sm:mb-0 sm:max-w-md" role="status">
+          <span>Mensagem pronta para colar no WhatsApp.</span>
+          <Button type="button" size="sm" variant="outline" onClick={() => {
+            void copyShareText(shareText).then((copied) => {
+              toast[copied ? "success" : "error"](copied ? "Mensagem copiada." : "Não foi possível copiar a mensagem.");
+            });
+          }}>
+            Copiar mensagem
           </Button>
         </div>
       ) : null}
