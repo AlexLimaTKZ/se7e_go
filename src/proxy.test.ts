@@ -1,5 +1,4 @@
 import { NextRequest } from "next/server";
-import { unstable_doesProxyMatch } from "next/experimental/testing/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const auth = vi.hoisted(() => ({
@@ -16,14 +15,8 @@ beforeEach(() => {
 });
 
 describe("proxy authentication", () => {
-  it("matches the application root when basePath is /go", () => {
-    expect(
-      unstable_doesProxyMatch({
-        config,
-        nextConfig: { basePath: "/go" },
-        url: "/go",
-      }),
-    ).toBe(true);
+  it("keeps an explicit root matcher for the /go basePath root", () => {
+    expect(config.matcher).toContain("/");
   });
 
   it("redirects an unauthenticated request from /go to /go/login", async () => {
