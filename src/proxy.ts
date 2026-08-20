@@ -53,5 +53,7 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  // With basePath=/go, the explicit root matcher is required so the app root
+  // (/go) cannot bypass the authentication proxy.
+  matcher: ["/", "/((?!_next/static|_next/image|favicon.ico).*)"],
 };
