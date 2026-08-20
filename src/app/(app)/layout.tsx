@@ -1,10 +1,20 @@
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import { Header } from "@/components/layout/header";
+import { verifyToken } from "@/lib/auth";
 
-export default function AppLayout({
+export default async function AppLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const cookieStore = await cookies();
+  const authToken = cookieStore.get("auth-token");
+
+  if (!authToken || !(await verifyToken(authToken.value))) {
+    redirect("/login");
+  }
+
   return (
     <>
       <a
