@@ -1,17 +1,20 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+type AuthCookie = { value: string } | undefined;
+type CookieStore = { get: (name: string) => AuthCookie };
+
 const auth = vi.hoisted(() => ({
   verifyToken: vi.fn(async () => true),
 }));
 const navigation = vi.hoisted(() => ({
-  redirect: vi.fn((path: string) => {
+  redirect: vi.fn((path: string): never => {
     throw new Error(`REDIRECT:${path}`);
   }),
 }));
 const headers = vi.hoisted(() => ({
-  cookies: vi.fn(async () => ({
-    get: vi.fn(() => ({ value: "valid-token" })),
+  cookies: vi.fn<() => Promise<CookieStore>>(async () => ({
+    get: () => ({ value: "valid-token" }),
   })),
 }));
 
@@ -28,14 +31,14 @@ beforeEach(() => {
   vi.clearAllMocks();
   auth.verifyToken.mockResolvedValue(true);
   headers.cookies.mockResolvedValue({
-    get: vi.fn(() => ({ value: "valid-token" })),
+    get: () => ({ value: "valid-token" }),
   });
 });
 
 describe("AppLayout", () => {
   it("redirects to login when the auth cookie is missing", async () => {
     headers.cookies.mockResolvedValue({
-      get: vi.fn(() => undefined),
+      get: () => undefined,
     });
 
     await expect(AppLayout({ children: <p>Conteúdo</p> })).rejects.toThrow(
