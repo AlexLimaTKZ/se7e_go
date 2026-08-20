@@ -8,7 +8,8 @@ const withSerwist = withSerwistInit({
 });
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // O SE7E GO vive abaixo de /go para deixar a raiz do domínio livre para o site institucional.
+  basePath: "/go",
   // Keep the repository-owned AGENTS.md stable when `next dev` starts.
   agentRules: false,
   reactCompiler: true,
@@ -24,7 +25,7 @@ const nextConfig: NextConfig = {
       {
         protocol: "https",
         hostname: "res.cloudinary.com",
-      }
+      },
     ],
   },
   async headers() {

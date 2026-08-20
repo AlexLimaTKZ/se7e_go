@@ -2,8 +2,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyToken } from "@/lib/auth";
 import { getQuoteIdFromShareCode } from "@/lib/quotes/share-token";
 
+const APP_BASE_PATH = "/go";
+
+function withoutBasePath(pathname: string): string {
+  if (pathname === APP_BASE_PATH) return "/";
+  if (pathname.startsWith(`${APP_BASE_PATH}/`)) {
+    return pathname.slice(APP_BASE_PATH.length) || "/";
+  }
+  return pathname;
+}
+
 export async function proxy(request: NextRequest) {
-  const { pathname } = request.nextUrl;
+  const pathname = withoutBasePath(request.nextUrl.pathname);
 
   if (pathname.startsWith("/o/")) {
     const shareCode = pathname.slice(3);
@@ -11,8 +21,10 @@ export async function proxy(request: NextRequest) {
 
     if (!quoteId) return NextResponse.next();
 
-    const viewerUrl = request.nextUrl.clone();
-    viewerUrl.pathname = `/compartilhar/orcamento/${quoteId}`;
+    const viewerUrl = new URL(
+      `${APP_BASE_PATH}/compartilhar/orcamento/${quoteId}`,
+      request.url,
+    );
     viewerUrl.searchParams.set("token", shareCode);
     return NextResponse.rewrite(viewerUrl);
   }
@@ -35,7 +47,7 @@ export async function proxy(request: NextRequest) {
   const authToken = request.cookies.get("auth-token");
   if (authToken && (await verifyToken(authToken.value))) return NextResponse.next();
 
-  const loginUrl = new URL("/login", request.url);
+  const loginUrl = new URL(`${APP_BASE_PATH}/login`, request.url);
   if (pathname !== "/") loginUrl.searchParams.set("from", pathname);
   return NextResponse.redirect(loginUrl);
 }

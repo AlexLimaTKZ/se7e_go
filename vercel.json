@@ -1,0 +1,28 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "redirects": [
+    {
+      "source": "/",
+      "destination": "/go",
+      "permanent": false
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "/go/api/:path*"
+    },
+    {
+      "source": "/icons/:path*",
+      "destination": "/go/icons/:path*"
+    },
+    {
+      "source": "/se7e-logo-v2.png",
+      "destination": "/go/se7e-logo-v2.png"
+    },
+    {
+      "source": "/sw.js",
+      "destination": "/go/sw.js"
+    }
+  ]
+}

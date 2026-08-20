@@ -8,6 +8,8 @@ import {
 import { loadSavedQuoteInput } from "@/lib/quotes/saved-quote";
 import { createQuoteShareCode } from "@/lib/quotes/share-token";
 
+const APP_BASE_PATH = "/go";
+
 export const dynamic = "force-dynamic";
 
 function parseId(id: string): number | null {
@@ -34,7 +36,7 @@ export async function GET(
     }
 
     const shareCode = await createQuoteShareCode(quoteId, secret);
-    const shareUrl = new URL(`/o/${shareCode}`, request.nextUrl.origin);
+    const shareUrl = new URL(`${APP_BASE_PATH}/o/${shareCode}`, request.nextUrl.origin);
 
     const message = `${buildQuoteShareText(quote.client.name, quote.quoteNumber)}\n\n📄 Visualizar orçamento:\n${shareUrl.toString()}`;
     const userAgent = request.headers.get("user-agent") || "";
