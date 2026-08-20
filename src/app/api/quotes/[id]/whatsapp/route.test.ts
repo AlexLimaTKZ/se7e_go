@@ -43,9 +43,9 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-describe("GET /api/quotes/[id]/whatsapp", () => {
+describe("GET /go/api/quotes/[id]/whatsapp", () => {
   it("keeps Android on the direct mobile WhatsApp URL", async () => {
-    const request = new NextRequest("https://se7e-go.vercel.app/api/quotes/71/whatsapp", {
+    const request = new NextRequest("https://se7e-go.vercel.app/go/api/quotes/71/whatsapp", {
       headers: { "user-agent": "Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 Mobile Safari/537.36" },
     });
 
@@ -55,7 +55,7 @@ describe("GET /api/quotes/[id]/whatsapp", () => {
     const location = response.headers.get("location") || "";
     expect(location).toContain("https://wa.me/5586995971050?");
     const decoded = decodeURIComponent(location);
-    expect(decoded).toContain("https://se7e-go.vercel.app/o/1z.abcd12.ABCDEFGHIJKLMN");
+    expect(decoded).toContain("https://se7e-go.vercel.app/go/o/1z.abcd12.ABCDEFGHIJKLMN");
     expect(decoded).toContain("Visualizar orçamento:");
     expect(decoded).not.toContain("Visualizar orçamento em PDF");
     expect(decoded).toContain("orçamento #5044");
@@ -66,7 +66,7 @@ describe("GET /api/quotes/[id]/whatsapp", () => {
   });
 
   it("opens the saved client conversation directly in WhatsApp Web on desktop", async () => {
-    const request = new NextRequest("https://se7e-go.vercel.app/api/quotes/71/whatsapp", {
+    const request = new NextRequest("https://se7e-go.vercel.app/go/api/quotes/71/whatsapp", {
       headers: { "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/151.0 Safari/537.36" },
     });
 
@@ -78,7 +78,7 @@ describe("GET /api/quotes/[id]/whatsapp", () => {
     expect(location).not.toContain("api.whatsapp.com");
     expect(location).not.toContain("wa.me/");
     expect(decodeURIComponent(location)).toContain(
-      "https://se7e-go.vercel.app/o/1z.abcd12.ABCDEFGHIJKLMN",
+      "https://se7e-go.vercel.app/go/o/1z.abcd12.ABCDEFGHIJKLMN",
     );
   });
 });
